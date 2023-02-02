@@ -28,7 +28,6 @@ public:
     }
 
 private:
-    /*MatMulAttrs matmulAttrs;*/
     impl_desc_type implType = impl_desc_type::acl;
 
     arm_compute::Tensor srcTensor;
@@ -41,18 +40,14 @@ public:
     bool isSupported(const MVNAttrs& mvnAttrs, 
                      const std::vector<MemoryDescCPtr>& srcDescs, 
                      const std::vector<MemoryDescCPtr>& dstDescs) const override {
-        std::cout << "AclMVNExecutorBuilder::isSupported" << std::endl;
         if (mvnAttrs.epsMode_ == MVNEpsMode::INSIDE_SQRT) {
-            std::cout << "AclMVNExecutorBuilder::isSupported - false (mvnAttrs.epsMode_ == MVNEpsMode::INSIDE_SQRT)" << std::endl;
             return false;
         }
         if (!mvnAttrs.normalizeVariance_) {
-            std::cout << "AclMVNExecutorBuilder::isSupported - false (!mvnAttrs.normalizeVariance_)" << std::endl;
             return false;
         }
         // ACL supports MVN with 2D inputs only
         if (srcDescs[0]->getShape().getRank() != 2) {
-            std::cout << "AclMVNExecutorBuilder::isSupported -false (srcDescs[0]->getShape().getRank() != 2 (" << srcDescs[0]->getShape().getRank() << "))" << std::endl;
             return false;
         }
 

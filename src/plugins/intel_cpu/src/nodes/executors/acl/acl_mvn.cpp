@@ -15,7 +15,6 @@ bool AclMVNExecutor::init(const MVNAttrs& mvnAttrs,
                           const std::vector<MemoryDescCPtr>& srcDescs,
                           const std::vector<MemoryDescCPtr>& dstDescs,
                           const dnnl::primitive_attr &attr) {
-    std::cout << "AclMVNExecutor::init" << std::endl;
     auto srcDims = srcDescs[0]->getShape().getStaticDims();
     auto dstDims = dstDescs[0]->getShape().getStaticDims();
 
@@ -38,7 +37,6 @@ bool AclMVNExecutor::init(const MVNAttrs& mvnAttrs,
 }
 
 void AclMVNExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, const void *post_ops_data_) {
-    std::cout << "AclMVNExecutor::exec" << std::endl;
     srcTensor.allocator()->import_memory(src[0]->GetPtr());
     dstTensor.allocator()->import_memory(dst[0]->GetPtr());
 

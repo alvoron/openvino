@@ -81,7 +81,7 @@ protected:
        std::tie(basicParamsSet, cpuParams, fusingParams, inPrc, outPrc) = this->GetParam();
 
        std::tie(inFmts, outFmts, priority, selectedType) = cpuParams;
-       std::tie(postOpMgrPtr, fusedOps) = fusingParams;
+       //std::tie(postOpMgrPtr, fusedOps) = fusingParams;
 
        InputShape inputShapes;
        ElementType netPrecision;

@@ -40,14 +40,27 @@ public:
     bool isSupported(const MVNAttrs& mvnAttrs, 
                      const std::vector<MemoryDescCPtr>& srcDescs, 
                      const std::vector<MemoryDescCPtr>& dstDescs) const override {
-        if (mvnAttrs.epsMode_ == MVNEpsMode::INSIDE_SQRT) {
+        if ((srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 &&
+             srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP16) ||
+            (dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 &&
+             dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP16))
+            return false;
+
+        if ((!srcDescs[0]->hasLayoutType(LayoutType::ncsp) &&
+             !srcDescs[0]->hasLayoutType(LayoutType::nspc)) ||
+            (!dstDescs[0]->hasLayoutType(LayoutType::ncsp) &&
+             !dstDescs[0]->hasLayoutType(LayoutType::nspc)))
+            return false;
+
+        if (mvnAttrs.epsMode_ == MVNEpsMode::OUTSIDE_SQRT) {
             return false;
         }
-        if (!mvnAttrs.normalizeVariance_) {
+        if (!mvnAttrs.normalizeVariance_ || !mvnAttrs.initAcrossChannels_) {
             return false;
         }
         // ACL supports MVN with 2D inputs only
-        if (srcDescs[0]->getShape().getRank() != 2) {
+        // TODO: remove the check if ACL support 2+ ranks
+        if (srcDescs[0]->getShape().getRank() != 4) {
             return false;
         }
 

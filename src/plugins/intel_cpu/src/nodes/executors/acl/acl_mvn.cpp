@@ -20,31 +20,39 @@ bool AclMVNExecutor::init(const MVNAttrs& mvnAttrs,
     auto dstDims = dstDescs[0]->getShape().getStaticDims();
 
     size_t X, Y;
-    if (getAclDataLayoutByMemoryDesc(srcDescs[0]) == arm_compute::DataLayout::NCHW) {
-        if (mvnAttrs.initAcrossChannels_) {
-            Y = srcDims[srcDims.size() - 4]; // Y = N
-            X = srcDims[srcDims.size() - 3] * srcDims[srcDims.size() - 2] * srcDims[srcDims.size() - 1]; // X = CHW
+    if (mvnAttrs.initAcrossChannels_) {
+        if (srcDims.size() >= 2) {
+            Y = srcDims[0];
+            X = srcDims[1];
+            for (int i = 2; i < srcDims.size(); i++) {
+                X *= srcDims[i];
+            }
         } else {
-            Y = srcDims[srcDims.size() - 4] * srcDims[srcDims.size() - 3]; // Y = NC
-            X = srcDims[srcDims.size() - 2] * srcDims[srcDims.size() - 1]; // X = HW
+            Y = srcDims[0];
+            X = 1;
         }
-    } else if (getAclDataLayoutByMemoryDesc(srcDescs[0]) == arm_compute::DataLayout::NHWC) {
-        if (mvnAttrs.initAcrossChannels_) {
-            Y = srcDims[srcDims.size() - 4]; // Y = N
-            X = srcDims[srcDims.size() - 3] * srcDims[srcDims.size() - 2] * srcDims[srcDims.size() - 1]; // X = HWC
-        } else {
+    } else {
+        if (getAclDataLayoutByMemoryDesc(srcDescs[0]) == arm_compute::DataLayout::NCHW) {
             return false;
         }
-    } else return false; // TODO: support other ranks
+        if (srcDims.size() > 2) {
+            Y = srcDims[0] * srcDims[1];
+            X = srcDims[2];
+            for (int i = 3; i < srcDims.size(); i++) {
+                X *= srcDims[i];
+            }
+        } else if (srcDims.size() == 2) {
+            Y = srcDims[0] * srcDims[1];
+            X = 1;
+        } else {
+            Y = srcDims[0];
+            X = 1;
+        }
+    }
 
-    TensorInfo srcTensorInfo = TensorInfo(TensorShape(Y, X), 1, precisionToAclDataType(srcDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[0]));
-    TensorInfo dstTensorInfo = TensorInfo(TensorShape(Y, X), 1, precisionToAclDataType(dstDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(dstDescs[0]));
+    TensorInfo srcTensorInfo = TensorInfo(TensorShape(X, Y), 1, precisionToAclDataType(srcDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[0]));
+    TensorInfo dstTensorInfo = TensorInfo(TensorShape(X, Y), 1, precisionToAclDataType(dstDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(dstDescs[0]));
 
-    /*auto M = srcDims[srcDims.size() - 2];
-    auto K = srcDims[srcDims.size() - 1];
-
-    TensorInfo srcTensorInfo = TensorInfo(TensorShape(K, M), 1, precisionToAclDataType(srcDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[0]));
-    TensorInfo dstTensorInfo = TensorInfo(TensorShape(K, M), 1, precisionToAclDataType(dstDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(dstDescs[0]));*/
 
     if (!arm_compute::NEMeanStdDevNormalizationLayer::validate(&srcTensorInfo, &dstTensorInfo, mvnAttrs.epsValue_))
         return false;

@@ -55,12 +55,7 @@ public:
         if (mvnAttrs.epsMode_ == MVNEpsMode::OUTSIDE_SQRT) {
             return false;
         }
-        if (!mvnAttrs.normalizeVariance_ || !mvnAttrs.initAcrossChannels_) {
-            return false;
-        }
-        // ACL supports MVN with 2D inputs only
-        // TODO: remove the check if ACL support 2+ ranks
-        if (srcDescs[0]->getShape().getRank() != 4) {
+        if (!mvnAttrs.normalizeVariance_) {
             return false;
         }
 

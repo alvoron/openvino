@@ -81,7 +81,7 @@ protected:
        std::tie(basicParamsSet, cpuParams, fusingParams, inPrc, outPrc) = this->GetParam();
 
        std::tie(inFmts, outFmts, priority, selectedType) = cpuParams;
-       //std::tie(postOpMgrPtr, fusedOps) = fusingParams;
+       std::tie(postOpMgrPtr, fusedOps) = fusingParams;
 
        InputShape inputShapes;
        ElementType netPrecision;
@@ -369,11 +369,14 @@ INSTANTIATE_TEST_SUITE_P(smoke_CompareWithRefs_Mvn5D, MvnLayerCPUTest, Mvn5D, Mv
 
 // 1D 2D case
 std::vector<fusingSpecificParams> fusingUnaryEltwiseParamsSet {
+    emptyFusingSpec,
+    #if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
        /* activations */
        fusingRelu,
        fusingElu,
        fusingTanh,
        fusingSwish,
+    #endif
 };
 
 const auto Mvn1D = ::testing::Combine(

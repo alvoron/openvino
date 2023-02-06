@@ -69,7 +69,7 @@ bool AclMVNExecutor::init(const MVNAttrs& mvnAttrs,
 void AclMVNExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, const void *post_ops_data_) {
     srcTensor.allocator()->import_memory(src[0]->GetPtr());
     dstTensor.allocator()->import_memory(dst[0]->GetPtr());
-    std::cout << "AclMVNExecutor::exec" << std::endl;
+
     mvn->run();
 
     srcTensor.allocator()->free();

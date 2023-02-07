@@ -1840,7 +1840,21 @@ void Reduce::initSupportedPrimitiveDescriptors() {
         config.inConfs[REDUCE_INDEXES].setMemDesc(creatorsMap.at(LayoutType::ncsp)->createSharedDesc(InferenceEngine::Precision::I32,
                                                                                                  getInputShapeAtPort(REDUCE_INDEXES)));
         config.outConfs[0].setMemDesc(creatorsMap.at(outFormat)->createSharedDesc(outPrecision, getOutputShapeAtPort(0)));
+    #if defined(OPENVINO_ARCH_X86_64)
         supportedPrimitiveDescriptors.push_back({config, impl_type});
+    #else
+        std::vector<MemoryDescPtr> srcMemoryDescs;
+        for (int i = 0; i < config.inConfs.size(); i++) {
+            srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
+        }
+        std::vector<MemoryDescPtr> dstMemoryDescs;
+        for (int i = 0; i < config.outConfs.size(); i++) {
+            dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
+        }
+        auto factory = std::make_shared<ReduceExecutorFactory>(reduceAttrs, srcMemoryDescs, dstMemoryDescs,
+                                                               std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
+        supportedPrimitiveDescriptors.push_back({config, impl_type, factory});
+    #endif
     };
 
     if (jit_mode) {

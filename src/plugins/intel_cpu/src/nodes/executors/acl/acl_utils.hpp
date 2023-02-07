@@ -3,8 +3,6 @@
 //
 #pragma once
 
-#if defined(OV_CPU_WITH_ACL)
-
 namespace ov {
 namespace intel_cpu {
 
@@ -38,16 +36,13 @@ inline arm_compute::DataType precisionToAclDataType(InferenceEngine::Precision p
 inline arm_compute::DataLayout getAclDataLayoutByMemoryDesc(MemoryDescCPtr desc) {
     if (desc->hasLayoutType(LayoutType::ncsp)) {
         if (desc->getShape().getRank() == 4) return arm_compute::DataLayout::NCHW;
-        if (desc->getShape().getRank() == 5) return arm_compute::DataLayout::NCDHW;
-        return arm_compute::DataLayout::UNKNOWN;
-    } else {
+        if (desc->getShape().getRank() == 5) return arm_compute::DataLayout::NCDHW; 
+    } else if(desc->hasLayoutType(LayoutType::nspc)) {
         if (desc->getShape().getRank() == 4) return arm_compute::DataLayout::NHWC;
         if (desc->getShape().getRank() == 5) return arm_compute::DataLayout::NDHWC;
-        return arm_compute::DataLayout::UNKNOWN;
     }
+    return arm_compute::DataLayout::UNKNOWN;
 }
 
 }   // namespace intel_cpu
 }   // namespace ov
-
-#endif

@@ -3,7 +3,7 @@
 //
 
 #include "acl_mvn.hpp"
-#include "utils/acl_utils.hpp"
+#include "acl_utils.hpp"
 
 namespace ov {
 namespace intel_cpu {
@@ -32,7 +32,7 @@ bool AclMVNExecutor::init(const MVNAttrs& mvnAttrs,
             X = 1;
         }
     } else {
-        if (getAclDataLayoutByMemoryDesc(srcDescs[0]) == arm_compute::DataLayout::NCHW) {
+        if (getAclDataLayoutByMemoryDesc(srcDescs[0]) == arm_compute::DataLayout::NHWC) {
             return false;
         }
         if (srcDims.size() > 2) {

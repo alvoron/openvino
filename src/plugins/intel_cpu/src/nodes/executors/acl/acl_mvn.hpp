@@ -42,14 +42,13 @@ public:
                      const std::vector<MemoryDescCPtr>& dstDescs) const override {
         if ((srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 &&
              srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP16) ||
-            (dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 &&
-             dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP16))
+             srcDescs[0]->getPrecision() != dstDescs[0]->getPrecision())
             return false;
 
-        if ((!srcDescs[0]->hasLayoutType(LayoutType::ncsp) &&
-             !srcDescs[0]->hasLayoutType(LayoutType::nspc)) ||
-            (!dstDescs[0]->hasLayoutType(LayoutType::ncsp) &&
-             !dstDescs[0]->hasLayoutType(LayoutType::nspc)))
+        if (!(srcDescs[0]->hasLayoutType(LayoutType::ncsp) &&
+              dstDescs[0]->hasLayoutType(LayoutType::ncsp)) &&
+            !(srcDescs[0]->hasLayoutType(LayoutType::nspc) &&
+              dstDescs[0]->hasLayoutType(LayoutType::nspc)))
             return false;
 
         if (mvnAttrs.epsMode_ == MVNEpsMode::OUTSIDE_SQRT) {

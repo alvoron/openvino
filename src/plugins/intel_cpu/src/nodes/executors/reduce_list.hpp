@@ -10,8 +10,7 @@
 #if defined(OV_CPU_WITH_ACL)
 #include "acl/acl_reduce.hpp"
 #endif
-//#include "x64/jit_reduce.hpp"
-//#include "common/ref_mvn.hpp"
+#include "common/ref_reduce.hpp"
 
 #include "onednn/iml_type_mapper.h"
 #include "common/primitive_cache.hpp"

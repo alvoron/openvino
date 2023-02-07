@@ -13,13 +13,6 @@ namespace intel_cpu {
 
 arm_compute::TensorShape shapeCast(const VectorDims& dims);
 
-static std::map<ReduceOperation, arm_compute::ReductionOperation> aclReduceOp = {
-    {ReduceOperation::MAX, arm_compute::ReductionOperation::MAX},
-    {ReduceOperation::MIN, arm_compute::ReductionOperation::MIN},
-    {ReduceOperation::PROD, arm_compute::ReductionOperation::PROD},
-    {ReduceOperation::SUM, arm_compute::ReductionOperation::SUM}
-};
-
 class AclReduceExecutor : public ReduceExecutor {
 public:
     AclReduceExecutor(const ExecutorContext::CPtr context);
@@ -51,17 +44,13 @@ public:
     bool isSupported(const ReduceAttrs& reduceAttrs,
                      const std::vector<MemoryDescPtr>& srcDescs,
                      const std::vector<MemoryDescPtr>& dstDescs) const override {
-/*        if (matmulAttrs.transposeA || matmulAttrs.transposeB || matmulAttrs.withBias)
-            return false;
-        if (srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 ||
-            srcDescs[1]->getPrecision() != InferenceEngine::Precision::FP32 ||
-            dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP32)
-            return false;
-        if (!srcDescs[0]->hasLayoutType(LayoutType::ncsp) ||
-            !srcDescs[1]->hasLayoutType(LayoutType::ncsp) ||
-            !dstDescs[0]->hasLayoutType(LayoutType::ncsp))
-            return false;*/
 
+        if (srcDescs[0]->getPrecision() != dstDescs[0]->getPrecision() ||
+           (srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 &&
+            dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP16 &&
+            dstDescs[0]->getPrecision() != InferenceEngine::Precision::I32))
+            return false;
+ 
         return true;
     }
 

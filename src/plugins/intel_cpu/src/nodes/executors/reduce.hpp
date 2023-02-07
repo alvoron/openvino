@@ -12,16 +12,10 @@
 namespace ov {
 namespace intel_cpu {
 
-enum ReduceOperation {
-    PROD,
-    MIN,
-    MAX,
-    SUM
-};
-
 struct ReduceAttrs {
-    unsigned int axis;
-    ReduceOperation operation;
+    std::vector<int> axes;
+    Algorithm operation;
+    bool keepDims;
 };
 
 class ReduceExecutor {

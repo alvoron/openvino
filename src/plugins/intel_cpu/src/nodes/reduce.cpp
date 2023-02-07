@@ -1759,6 +1759,9 @@ Reduce::Reduce(const std::shared_ptr<ngraph::Node>& op, const GraphContext::CPtr
         }
         vec_reduceDH_prc.clear();
         setJITBeyond5D();
+        reduceAttrs.operation = algorithm;
+        reduceAttrs.axes = raw_axes;
+        reduceAttrs.keepDims = keep_dims;
     } else {
         IE_THROW(NotImplemented) << errorMessage;
     }

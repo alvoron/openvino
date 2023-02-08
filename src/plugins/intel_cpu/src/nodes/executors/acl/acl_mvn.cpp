@@ -10,7 +10,7 @@ namespace intel_cpu {
 
 using namespace arm_compute;
 
-AclMVNExecutor::AclMVNExecutor() : MVNExecutor() {}
+AclMVNExecutor::AclMVNExecutor(const ExecutorContext::CPtr context) : MVNExecutor(context) {}
 
 bool AclMVNExecutor::init(const MVNAttrs& mvnAttrs,
                           const std::vector<MemoryDescCPtr>& srcDescs,

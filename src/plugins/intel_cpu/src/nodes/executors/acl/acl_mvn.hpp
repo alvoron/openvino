@@ -13,7 +13,7 @@ namespace intel_cpu {
 
 class AclMVNExecutor : public MVNExecutor {
 public:
-    AclMVNExecutor();
+    AclMVNExecutor(const ExecutorContext::CPtr context);
 
     bool init(const MVNAttrs& mvnAttrs,
               const std::vector<MemoryDescCPtr>& srcDescs,
@@ -61,8 +61,8 @@ public:
         return true;
     }
 
-    MVNExecutorPtr makeExecutor() const override {
-        return std::make_shared<AclMVNExecutor>();
+    MVNExecutorPtr makeExecutor(const ExecutorContext::CPtr context) const override {
+        return std::make_shared<AclMVNExecutor>(context);
     }
 };
 

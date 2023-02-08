@@ -27,8 +27,10 @@ public:
 
 private:
     void reduce_ref_process(const float *in_ptr, float *out_ptr, float init_value, std::function<float(float, float)> func);
+    inline void calc_process_dst_dims(std::vector<int> &reduce_axes, const InferenceEngine::SizeVector &dst_dim);
 
     impl_desc_type implType = impl_desc_type::ref;
+    InferenceEngine::SizeVector process_dst_dims;
 };
 
 class RefReduceExecutorBuilder : public ReduceExecutorBuilder {

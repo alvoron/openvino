@@ -15,7 +15,7 @@ bool RefReduceExecutor::init(const ReduceAttrs& reduceAttrs,
                           const std::vector<MemoryDescPtr>& srcDescs,
                           const std::vector<MemoryDescPtr>& dstDescs,
                           const dnnl::primitive_attr &attr) {
-    this->reduceAttrs = mvnAttrs;
+    this->reduceAttrs = reduceAttrs;
 
     if (srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 ||
         dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP32)
@@ -31,7 +31,7 @@ bool RefReduceExecutor::init(const ReduceAttrs& reduceAttrs,
 void RefReduceExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, std::unordered_map<int, MemoryPtr> postOpsArgs) {
     float *in_ptr = reinterpret_cast<float*>(src[0]->GetPtr());
     float *out_ptr = reinterpret_cast<float*>(dst[0]->GetPtr());
-    switch (algorithm) {
+    switch (reduceAttrs.operation) {
         case Algorithm::ReduceAnd:
             reduce_ref_process(in_ptr, out_ptr, 1, [](float x, float y)->float { return x && y; });
             break;
@@ -71,7 +71,48 @@ void RefReduceExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vect
             reduce_ref_process(in_ptr, out_ptr, 0, [](float old, float y)->float { return old + y * y; });
             break;
     default:
-        IE_THROW() << errorPrefix << "gets unsupported reduce mode.";
+        IE_THROW() << "Unsupported reduce mode.";
+    }
+}
+
+inline void RefReduceExecutor::calc_process_dst_dims(std::vector<int> &reduce_axes, const SizeVector &dst_dims) {
+    std::set<size_t> axes;
+    SizeVector out_dims;
+    process_dst_dims.clear();
+    axes_for_reduction.clear();
+    for (auto &axis : reduce_axes) {
+        if (axis < 0)
+            axis += src_dims.size();
+        if (static_cast<size_t>(axis) > src_dims.size())
+            IE_THROW() << errorPrefix << " exceeds data tensor dimension on index to reduce";
+        axes.insert(static_cast<size_t>(axis));
+    }
+    for (size_t i = 0; i < src_dims.size(); i++) {
+        bool found = false;
+        for (auto axis : axes) {
+            if (i == axis) {
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            if (keep_dims) out_dims.push_back(1);
+            process_dst_dims.push_back(1);
+            axes_for_reduction.push_back(i);
+        } else {
+            out_dims.push_back(src_dims[i]);
+            process_dst_dims.push_back(src_dims[i]);
+        }
+    }
+    if (jit_mode && jit_beyond_5D) {
+        if (std::accumulate(out_dims.begin(), out_dims.end(), size_t(1), std::multiplies<size_t>()) !=
+            std::accumulate(dst_dims.begin(), dst_dims.end(), size_t(1), std::multiplies<size_t>()))
+            IE_THROW() << errorPrefix << "gets incorrect number of output dimensions!";
+    } else {
+        for (size_t i = 0; i < std::min(out_dims.size(), dst_dims.size()); i++) {
+            if (out_dims[i] != dst_dims[i])
+                IE_THROW() << errorPrefix << "gets incorrect number of output dimensions!";
+        }
     }
 }
 

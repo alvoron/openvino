@@ -25,12 +25,17 @@ bool RefReduceExecutor::init(const ReduceAttrs& reduceAttrs,
         !dstDescs[0]->hasLayoutType(LayoutType::ncsp))
         return false;
 
+    calc_process_dst_dims(reduceAttrs.axes, dstDescs[0]->getShape().getStaticDims());
+
     return true;
 }
 
 void RefReduceExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, std::unordered_map<int, MemoryPtr> postOpsArgs) {
+    errorPrefix = "Reduce node with name '" + reduceAttrs.nodeName + "'";
+
     float *in_ptr = reinterpret_cast<float*>(src[0]->GetPtr());
     float *out_ptr = reinterpret_cast<float*>(dst[0]->GetPtr());
+
     switch (reduceAttrs.operation) {
         case Algorithm::ReduceAnd:
             reduce_ref_process(in_ptr, out_ptr, 1, [](float x, float y)->float { return x && y; });
@@ -71,13 +76,13 @@ void RefReduceExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vect
             reduce_ref_process(in_ptr, out_ptr, 0, [](float old, float y)->float { return old + y * y; });
             break;
     default:
-        IE_THROW() << "Unsupported reduce mode.";
+        IE_THROW() << errorPrefix << " gets unsupported reduce mode.";
     }
 }
 
-inline void RefReduceExecutor::calc_process_dst_dims(std::vector<int> &reduce_axes, const SizeVector &dst_dims) {
+inline void RefReduceExecutor::calc_process_dst_dims(std::vector<int> &reduce_axes, const InferenceEngine::SizeVector &dst_dims) {
     std::set<size_t> axes;
-    SizeVector out_dims;
+    InferenceEngine::SizeVector out_dims;
     process_dst_dims.clear();
     axes_for_reduction.clear();
     for (auto &axis : reduce_axes) {
@@ -96,7 +101,7 @@ inline void RefReduceExecutor::calc_process_dst_dims(std::vector<int> &reduce_ax
             }
         }
         if (found) {
-            if (keep_dims) out_dims.push_back(1);
+            if (reduceAttrs.keepDims) out_dims.push_back(1);
             process_dst_dims.push_back(1);
             axes_for_reduction.push_back(i);
         } else {
@@ -104,16 +109,10 @@ inline void RefReduceExecutor::calc_process_dst_dims(std::vector<int> &reduce_ax
             process_dst_dims.push_back(src_dims[i]);
         }
     }
-    if (jit_mode && jit_beyond_5D) {
-        if (std::accumulate(out_dims.begin(), out_dims.end(), size_t(1), std::multiplies<size_t>()) !=
-            std::accumulate(dst_dims.begin(), dst_dims.end(), size_t(1), std::multiplies<size_t>()))
-            IE_THROW() << errorPrefix << "gets incorrect number of output dimensions!";
-    } else {
         for (size_t i = 0; i < std::min(out_dims.size(), dst_dims.size()); i++) {
             if (out_dims[i] != dst_dims[i])
                 IE_THROW() << errorPrefix << "gets incorrect number of output dimensions!";
         }
-    }
 }
 
 void RefReduceExecutor::reduce_ref_process(const float *in_ptr, float *out_ptr, float init_value, std::function<float(float, float)> func) {
@@ -124,11 +123,11 @@ void RefReduceExecutor::reduce_ref_process(const float *in_ptr, float *out_ptr, 
         reduced_dims_work_amount *= src_dims[i];
     reduced_dims_work_amount /= work_amount_dst;
 
-    SizeVector src_strides = getParentEdgeAt(REDUCE_DATA)->getMemory().GetDescWithType<BlockedMemoryDesc>()->getStrides();
+    InferenceEngine::SizeVector src_strides = getParentEdgeAt(REDUCE_DATA)->getMemory().GetDescWithType<BlockedMemoryDesc>()->getStrides();
     parallel_nt(0, [&](const int ithr, const int nthr) {
         int j;
         size_t i, start = 0, end = 0;
-        SizeVector dst_counters(process_dst_dims.size(), 0);
+        InferenceEngine::SizeVector dst_counters(process_dst_dims.size(), 0);
         splitter(work_amount_dst, nthr, ithr, start, end);
         for (j = process_dst_dims.size() - 1, i = start; j >= 0; j--) {
             dst_counters[j] = i % process_dst_dims[j];
@@ -137,7 +136,7 @@ void RefReduceExecutor::reduce_ref_process(const float *in_ptr, float *out_ptr, 
         for (size_t src_idx = 0, dst_idx = start; dst_idx < end; ++dst_idx) {
             float reduce_prod = init_value;
             bool update_idx = true;
-            SizeVector src_counters = dst_counters;
+            InferenceEngine::SizeVector src_counters = dst_counters;
             for (i = 0; i < reduced_dims_work_amount; ++i) {
                 if (update_idx) {
                     src_idx = 0;
@@ -171,8 +170,8 @@ void RefReduceExecutor::reduce_ref_process(const float *in_ptr, float *out_ptr, 
     reduce_ref_map(out_ptr, work_amount_dst, reduced_dims_work_amount);
 }
 
-inline void Reduce::reduce_ref_map(float *out_ptr, size_t work_amount_dst, size_t reduced_dims_work_amount) {
-    switch (algorithm) {
+inline void RefReduceExecutor::reduce_ref_map(float *out_ptr, size_t work_amount_dst, size_t reduced_dims_work_amount) {
+    switch (reduceAttrs.operation) {
         case Algorithm::ReduceAnd:
         case Algorithm::ReduceL1:
         case Algorithm::ReduceMax:

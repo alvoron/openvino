@@ -13,6 +13,7 @@ namespace ov {
 namespace intel_cpu {
 
 struct ReduceAttrs {
+    std::string nodeName;
     std::vector<int> axes;
     Algorithm operation;
     bool keepDims;

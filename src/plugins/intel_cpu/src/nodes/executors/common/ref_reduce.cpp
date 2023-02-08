@@ -25,7 +25,7 @@ bool RefReduceExecutor::init(const ReduceAttrs& reduceAttrs,
         !dstDescs[0]->hasLayoutType(LayoutType::ncsp))
         return false;
 
-    calc_process_dst_dims(reduceAttrs.axes, dstDescs[0]->getShape().getStaticDims());
+    calc_process_dst_dims(dstDescs[0]->getShape().getStaticDims());
 
     return true;
 }
@@ -33,59 +33,56 @@ bool RefReduceExecutor::init(const ReduceAttrs& reduceAttrs,
 void RefReduceExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, std::unordered_map<int, MemoryPtr> postOpsArgs) {
     errorPrefix = "Reduce node with name '" + reduceAttrs.nodeName + "'";
 
-    float *in_ptr = reinterpret_cast<float*>(src[0]->GetPtr());
-    float *out_ptr = reinterpret_cast<float*>(dst[0]->GetPtr());
-
     switch (reduceAttrs.operation) {
         case Algorithm::ReduceAnd:
-            reduce_ref_process(in_ptr, out_ptr, 1, [](float x, float y)->float { return x && y; });
+            reduce_ref_process(src, dst, 1, [](float x, float y)->float { return x && y; });
             break;
         case Algorithm::ReduceL1:
-            reduce_ref_process(in_ptr, out_ptr, 0, [](float old, float y)->float { return old + (y >= 0 ? y : -y); });
+            reduce_ref_process(src, dst, 0, [](float old, float y)->float { return old + (y >= 0 ? y : -y); });
             break;
         case Algorithm::ReduceL2:
-            reduce_ref_process(in_ptr, out_ptr, 0, [](float old, float y)->float { return old + y * y; });
+            reduce_ref_process(src, dst, 0, [](float old, float y)->float { return old + y * y; });
             break;
         case Algorithm::ReduceLogSum:
-            reduce_ref_process(in_ptr, out_ptr, 0, [](float x, float y)->float { return x + y; });
+            reduce_ref_process(src, dst, 0, [](float x, float y)->float { return x + y; });
             break;
         case Algorithm::ReduceLogSumExp:
-            reduce_ref_process(in_ptr, out_ptr, 0, [](float old, float y)->float { return old + expf(y); });
+            reduce_ref_process(src, dst, 0, [](float old, float y)->float { return old + expf(y); });
             break;
         case Algorithm::ReduceMax:
-            reduce_ref_process(in_ptr, out_ptr, std::numeric_limits<float>::lowest(),
+            reduce_ref_process(src, dst, std::numeric_limits<float>::lowest(),
                                                     [](float x, float y)->float { return x > y ? x : y; });
             break;
         case Algorithm::ReduceMean:
-            reduce_ref_process(in_ptr, out_ptr, 0, [](float x, float y)->float { return x + y; });
+            reduce_ref_process(src, dst, 0, [](float x, float y)->float { return x + y; });
             break;
         case Algorithm::ReduceMin:
-            reduce_ref_process(in_ptr, out_ptr, std::numeric_limits<float>::max(),
+            reduce_ref_process(src, dst, std::numeric_limits<float>::max(),
                                                     [](float x, float y)->float { return x < y ? x : y; });
             break;
         case Algorithm::ReduceOr:
-            reduce_ref_process(in_ptr, out_ptr, 0, [](float x, float y)->float { return x || y; });
+            reduce_ref_process(src, dst, 0, [](float x, float y)->float { return x || y; });
             break;
         case Algorithm::ReduceProd:
-            reduce_ref_process(in_ptr, out_ptr, 1, [](float x, float y)->float { return x * y; });
+            reduce_ref_process(src, dst, 1, [](float x, float y)->float { return x * y; });
             break;
         case Algorithm::ReduceSum:
-            reduce_ref_process(in_ptr, out_ptr, 0, [](float x, float y)->float { return x + y; });
+            reduce_ref_process(src, dst, 0, [](float x, float y)->float { return x + y; });
             break;
         case Algorithm::ReduceSumSquare:
-            reduce_ref_process(in_ptr, out_ptr, 0, [](float old, float y)->float { return old + y * y; });
+            reduce_ref_process(src, dst, 0, [](float old, float y)->float { return old + y * y; });
             break;
     default:
         IE_THROW() << errorPrefix << " gets unsupported reduce mode.";
     }
 }
 
-inline void RefReduceExecutor::calc_process_dst_dims(std::vector<int> &reduce_axes, const InferenceEngine::SizeVector &dst_dims) {
+inline void RefReduceExecutor::calc_process_dst_dims(const InferenceEngine::SizeVector &dst_dims) {
     std::set<size_t> axes;
     InferenceEngine::SizeVector out_dims;
     process_dst_dims.clear();
     axes_for_reduction.clear();
-    for (auto &axis : reduce_axes) {
+    for (auto &axis : reduceAttrs.axes) {
         if (axis < 0)
             axis += src_dims.size();
         if (static_cast<size_t>(axis) > src_dims.size())
@@ -115,7 +112,11 @@ inline void RefReduceExecutor::calc_process_dst_dims(std::vector<int> &reduce_ax
         }
 }
 
-void RefReduceExecutor::reduce_ref_process(const float *in_ptr, float *out_ptr, float init_value, std::function<float(float, float)> func) {
+void RefReduceExecutor::reduce_ref_process(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst,
+                                           float init_value, std::function<float(float, float)> func) {
+    float *in_ptr = reinterpret_cast<float*>(src[0]->GetPtr());
+    float *out_ptr = reinterpret_cast<float*>(dst[0]->GetPtr());
+
     size_t work_amount_dst = 1, reduced_dims_work_amount = 1;
     for (size_t i = 0; i < process_dst_dims.size(); i++)
         work_amount_dst *= process_dst_dims[i];
@@ -123,7 +124,7 @@ void RefReduceExecutor::reduce_ref_process(const float *in_ptr, float *out_ptr, 
         reduced_dims_work_amount *= src_dims[i];
     reduced_dims_work_amount /= work_amount_dst;
 
-    InferenceEngine::SizeVector src_strides = getParentEdgeAt(REDUCE_DATA)->getMemory().GetDescWithType<BlockedMemoryDesc>()->getStrides();
+    InferenceEngine::SizeVector src_strides = src[0]->GetDescWithType<BlockedMemoryDesc>()->getStrides();
     parallel_nt(0, [&](const int ithr, const int nthr) {
         int j;
         size_t i, start = 0, end = 0;

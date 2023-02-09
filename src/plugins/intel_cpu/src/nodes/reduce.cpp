@@ -1963,6 +1963,10 @@ void Reduce::prepareParams() {
     dnnl::primitive_attr attr;
     setPostOps(attr, dst_dims, true);
     auto selectedPD = getSelectedPrimitiveDescriptor();
+            reduceAttrs.operation = algorithm;
+        reduceAttrs.axes = raw_axes;
+        reduceAttrs.keepDims = keep_dims;
+        reduceAttrs.nodeName = getName();
     execPtr = selectedPD->getExecutorFactoryAs<ReduceExecutorFactory>()->makeExecutor(reduceAttrs, srcMemoryDescs, dstMemoryDescs, attr);
     selectedPD->setImplementationType(execPtr->getImplType());
 }
@@ -2035,6 +2039,7 @@ void Reduce::executeDynamicImpl(dnnl::stream strm) {
 }
 
 void Reduce::execute(dnnl::stream strm) {
+#if defined(OPENVINO_ARCH_X86_64)
     auto &dstMemPtr = getChildEdgeAt(0)->getMemoryPtr();
     auto &srcMemPtr = getParentEdgeAt(REDUCE_DATA)->getMemoryPtr();
 
@@ -2055,6 +2060,22 @@ void Reduce::execute(dnnl::stream strm) {
             IE_THROW() << errorPrefix << " supports only plain layout on machine w/o sse42.";
         }
     }
+#else
+    if (!execPtr) {
+        IE_THROW() << "Can't execute Reduce node. Executor is not created";
+    }
+
+    std::vector<MemoryCPtr> srcMemory;
+    for (int i = 0; i < getOriginalInputsNumber(); i++) {
+        srcMemory.push_back(getParentEdgeAt(i)->getMemoryPtr());
+    }
+    std::vector<MemoryPtr> dstMemory;
+    for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+        dstMemory.push_back(getChildEdgeAt(i)->getMemoryPtr());
+    }
+
+    execPtr->exec(srcMemory, dstMemory, postOpsArgs);
+#endif
 }
 
 void Reduce::reduce_type(const uint8_t *in_ptr, uint8_t *out_ptr, size_t dst_size) {

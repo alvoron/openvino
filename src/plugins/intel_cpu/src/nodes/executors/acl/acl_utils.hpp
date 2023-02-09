@@ -10,6 +10,18 @@
 namespace ov {
 namespace intel_cpu {
 
+inline arm_compute::TensorShape getAclTensorShapeByVectorDims(VectorDims vectorDims) {
+    arm_compute::TensorShape tensorShape;
+    for (std::size_t i = 0; i < vectorDims.size(); ++i) {
+        tensorShape.set(vectorDims.size() - i - 1, vectorDims[i], false);
+    }
+    if (tensorShape.num_dimensions() == 0) {
+        tensorShape.set(0, 1, false);
+        tensorShape.set_num_dimensions(1);
+    }
+    return tensorShape;
+}
+
 /**
 * @brief Return ComputeLibrary DataType that corresponds to the given precision
 * @param precision precision to be converted

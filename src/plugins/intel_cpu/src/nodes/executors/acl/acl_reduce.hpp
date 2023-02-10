@@ -11,8 +11,6 @@
 namespace ov {
 namespace intel_cpu {
 
-arm_compute::TensorShape shapeCast(const VectorDims& dims);
-
 class AclReduceExecutor : public ReduceExecutor {
 public:
     AclReduceExecutor(const ExecutorContext::CPtr context);
@@ -34,9 +32,9 @@ private:
     impl_desc_type implType = impl_desc_type::acl;
 
     arm_compute::Tensor srcTensor;
-    arm_compute::Tensor weiTensor;
     arm_compute::Tensor dstTensor;
     std::unique_ptr<arm_compute::NEReductionOperation> reduce = nullptr;
+    std::unique_ptr<arm_compute::NEReduceMean> reduceMean = nullptr;
 };
 
 class AclReduceExecutorBuilder : public ReduceExecutorBuilder {

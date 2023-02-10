@@ -11,8 +11,6 @@
 namespace ov {
 namespace intel_cpu {
 
-arm_compute::TensorShape shapeCast(const VectorDims& dims);
-
 class AclMatMulExecutor : public MatMulExecutor {
 public:
     AclMatMulExecutor(const ExecutorContext::CPtr context);

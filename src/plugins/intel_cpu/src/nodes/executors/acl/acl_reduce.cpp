@@ -16,7 +16,7 @@ arm_compute::ReductionOperation getAclReductionOperationByAlgorithm(Algorithm al
         case Algorithm::ReduceMin:  return arm_compute::ReductionOperation::MIN;
         case Algorithm::ReduceSum:  return arm_compute::ReductionOperation::SUM;
         case Algorithm::ReduceProd: return arm_compute::ReductionOperation::PROD;
-        default:                    IE_THROW() << "Unsupported reduction operation";
+        default:                    IE_THROW() << "Unsupported reduction operation: " << static_cast<int>(algorithm);
     }
 }
 
@@ -26,53 +26,67 @@ bool AclReduceExecutor::init(const ReduceAttrs& reduceAttrs,
                           const std::vector<MemoryDescPtr>& srcDescs,
                           const std::vector<MemoryDescPtr>& dstDescs,
                           const dnnl::primitive_attr &attr) {
-    std::cout << "AclReduceExecutor::init" << srcDescs.size() << " " << dstDescs.size() << std::endl;
-
-    //ACL does not support more than 1 reduction axes
-    if (reduceAttrs.axes.size() != 1)
-        return false;
-
-    //TODO: support more operation if ACL does
     if (reduceAttrs.operation != Algorithm::ReduceMax &&
         reduceAttrs.operation != Algorithm::ReduceMin &&
         reduceAttrs.operation != Algorithm::ReduceSum &&
-        reduceAttrs.operation != Algorithm::ReduceProd) {
-            std::cout << "AclReduceExecutor::init - unsupported op (return false)" << std::endl;
+        reduceAttrs.operation != Algorithm::ReduceProd &&
+        reduceAttrs.operation != Algorithm::ReduceMean) {
             return false;
         }
+
+    this->reduceAttrs = reduceAttrs;
 
     auto srcDims = srcDescs[0]->getShape().getStaticDims();
     auto dstDims = dstDescs[0]->getShape().getStaticDims();
 
-    TensorInfo srcTensorInfo = TensorInfo(TensorShape(srcDims[0], srcDims[1], srcDims[2], srcDims[3])/*getAclTensorShapeByVectorDims(srcDims)*/, 1,
+    TensorInfo srcTensorInfo = TensorInfo(shapeCast(srcDims), 1,
     precisionToAclDataType(srcDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[0]));
-    TensorInfo dstTensorInfo = TensorInfo(TensorShape(dstDims[0], dstDims[1], dstDims[2], dstDims[3])/*getAclTensorShapeByVectorDims(dstDims)*/, 1,
+    TensorInfo dstTensorInfo = TensorInfo(shapeCast(dstDims), 1,
     precisionToAclDataType(dstDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(dstDescs[0]));
 
-    unsigned int axis = reduceAttrs.axes[0];
-    arm_compute::Status status = arm_compute::NEReductionOperation::validate(&srcTensorInfo, &dstTensorInfo, axis,
-                                                     getAclReductionOperationByAlgorithm(reduceAttrs.operation), reduceAttrs.keepDims);
-    if (!status) {
-        std::cout << "AclReduceExecutor::init - validate failed" << std::endl;
-        return false;
+    arm_compute::Coordinates axesMean;
+    if (reduceAttrs.operation == Algorithm::ReduceMean) {
+        auto srcDims1 = srcDescs[1]->getShape().getStaticDims();
+        for (size_t i = 0; i < reduceAttrs.axes.size(); ++i) {
+            auto pos = axisCast(i, reduceAttrs.axes.size());
+            axesMean.set(pos, reduceAttrs.axes[i]);
+        }
+        if (!arm_compute::NEReduceMean::validate(&srcTensorInfo, axesMean, reduceAttrs.keepDims, &dstTensorInfo)) {
+            return false;
+        }
+    } else {
+        if (reduceAttrs.axes.size() != 1)
+            return false;
+        if (!arm_compute::NEReductionOperation::validate(&srcTensorInfo, &dstTensorInfo, axisCast(reduceAttrs.axes[0], srcDims.size()),
+                                                         getAclReductionOperationByAlgorithm(reduceAttrs.operation), reduceAttrs.keepDims)) {
+            return false;
+        }
     }
 
     srcTensor.allocator()->init(srcTensorInfo);
     dstTensor.allocator()->init(dstTensorInfo);
 
-    reduce = std::make_unique<arm_compute::NEReductionOperation>();
-    reduce->configure(&srcTensor, &dstTensor, reduceAttrs.axes[0], getAclReductionOperationByAlgorithm(reduceAttrs.operation), reduceAttrs.keepDims);
+    if (reduceAttrs.operation == Algorithm::ReduceMean) {
+        reduceMean = std::make_unique<arm_compute::NEReduceMean>();
+        reduceMean->configure(&srcTensor, axesMean, reduceAttrs.keepDims, &dstTensor);
+    } else {
+        reduce = std::make_unique<arm_compute::NEReductionOperation>();
+        reduce->configure(&srcTensor, &dstTensor, axisCast(reduceAttrs.axes[0], srcDims.size()),
+                          getAclReductionOperationByAlgorithm(reduceAttrs.operation), reduceAttrs.keepDims);
+    }
 
-    std::cout << "AclReduceExecutor::init - true" << std::endl;
     return true;
 }
 
 void AclReduceExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, std::unordered_map<int, MemoryPtr> postOpsArgs) {
-    std::cout << "AclReduceExecutor::exec" << std::endl;
     srcTensor.allocator()->import_memory(src[0]->GetPtr());
     dstTensor.allocator()->import_memory(dst[0]->GetPtr());
 
-    reduce->run();
+    if (this->reduceAttrs.operation == Algorithm::ReduceMean) {
+        reduceMean->run();
+    } else {
+        reduce->run();
+    }
 
     srcTensor.allocator()->free();
     dstTensor.allocator()->free();

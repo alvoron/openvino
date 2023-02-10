@@ -1761,6 +1761,10 @@ Reduce::Reduce(const std::shared_ptr<ngraph::Node>& op, const GraphContext::CPtr
         }
         vec_reduceDH_prc.clear();
         setJITBeyond5D();
+        reduceAttrs.operation = algorithm;
+        reduceAttrs.axes = raw_axes;
+        reduceAttrs.keepDims = keep_dims;
+        reduceAttrs.nodeName = getName();
     } else {
         IE_THROW(NotImplemented) << errorMessage;
     }
@@ -1853,10 +1857,7 @@ void Reduce::initSupportedPrimitiveDescriptors() {
         for (int i = 0; i < config.outConfs.size(); i++) {
             dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
         }
-        reduceAttrs.operation = algorithm;
-        reduceAttrs.axes = raw_axes;
-        reduceAttrs.keepDims = keep_dims;
-        reduceAttrs.nodeName = getName();
+
         auto factory = std::make_shared<ReduceExecutorFactory>(reduceAttrs, srcMemoryDescs, dstMemoryDescs,
                                                                std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
         supportedPrimitiveDescriptors.push_back({config, impl_type, factory});
@@ -1921,6 +1922,7 @@ void Reduce::prepareParams() {
 
     auto builder = [&](const ReduceKey& key) -> std::shared_ptr<jit_uni_reduce_post_kernel> {
         std::shared_ptr<jit_uni_reduce_post_kernel> post_kernel;
+
         if (mayiuse(cpu::x64::avx512_core)) {
             post_kernel.reset(new jit_uni_reduce_post_kernel_f32<cpu::x64::avx512_core>(key.jcp, *attr.get()));
         } else if (mayiuse(cpu::x64::avx2)) {
@@ -1963,10 +1965,7 @@ void Reduce::prepareParams() {
     dnnl::primitive_attr attr;
     setPostOps(attr, dst_dims, true);
     auto selectedPD = getSelectedPrimitiveDescriptor();
-            reduceAttrs.operation = algorithm;
-        reduceAttrs.axes = raw_axes;
-        reduceAttrs.keepDims = keep_dims;
-        reduceAttrs.nodeName = getName();
+
     execPtr = selectedPD->getExecutorFactoryAs<ReduceExecutorFactory>()->makeExecutor(reduceAttrs, srcMemoryDescs, dstMemoryDescs, attr);
     selectedPD->setImplementationType(execPtr->getImplType());
 }

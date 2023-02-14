@@ -91,6 +91,7 @@
 #include "transformations/snippets/x64/pass/snippets_mark_skipped.hpp"
 #include "transformations/cpu_opset/x64/pass/mha_fusion.hpp"
 #include "transformations/cpu_opset/x64/pass/convert_to_interaction.hpp"
+#include "transformations/cpu_opset/arm/pass/convert_reduce_multi_axis.hpp"
 #include "transformations/cpu_opset/common/pass/convert_fq_rnn_to_quantized_rnn.hpp"
 #include "transformations/cpu_opset/common/pass/move_eltwise_up_data_movement.hpp"
 #include "transformations/cpu_opset/common/pass/swap_convert_transpose.hpp"
@@ -239,6 +240,7 @@ void Transformations::PreLpt(const std::vector<ov::element::Type>& defaultPrecis
     manager.register_pass<SwapConvertTranspose>();
     OV_CPU_REGISTER_PASS_X64(manager, ConvertToInteraction);
     OV_CPU_REGISTER_PASS_X64(manager, ConvertInteractionInt8);
+    OV_CPU_REGISTER_PASS_ARM64(manager, ConvertReduceMultiAxis);
 
     auto pass_config = manager.get_pass_config();
 

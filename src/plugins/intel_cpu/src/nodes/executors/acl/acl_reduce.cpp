@@ -55,8 +55,10 @@ bool AclReduceExecutor::init(const ReduceAttrs& reduceAttrs,
             return false;
         }
     } else {
-        if (reduceAttrs.axes.size() != 1)
+        if (reduceAttrs.axes.size() != 1) {
+            std::cout << "AclReduceExecutor::init More than 1 axe, exiting..." << std::endl;
             return false;
+        }
         if (!arm_compute::NEReductionOperation::validate(&srcTensorInfo, &dstTensorInfo, axisCast(reduceAttrs.axes[0], srcDims.size()),
                                                          getAclReductionOperationByAlgorithm(reduceAttrs.operation), reduceAttrs.keepDims)) {
             return false;

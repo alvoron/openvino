@@ -26,5 +26,24 @@ namespace intel_cpu {
 
 #endif
 
+#if defined(OPENVINO_ARCH_ARM64)
+
+#define OV_CPU_REGISTER_PASS_ARM64(MANAGER, PASS) \
+    MANAGER.register_pass<PASS>();
+
+#define OV_CPU_DISABLE_PASS_ARM64(MANAGER, PASS) \
+    MANAGER.get_pass_config()->disable<PASS>();
+
+#define OV_CPU_SET_CALLBACK_ARM64(MANAGER, CALLBACK, ...) \
+    MANAGER.get_pass_config()->set_callback<__VA_ARGS__>(CALLBACK);
+
+#else
+
+#define OV_CPU_REGISTER_PASS_ARM64(MANAGER, PASS)
+#define OV_CPU_DISABLE_PASS_ARM64(MANAGER, PASS)
+#define OV_CPU_SET_CALLBACK_ARM64(MANAGER, CALLBACK, ...)
+
+#endif
+
 }   // namespace intel_cpu
 }   // namespace ov

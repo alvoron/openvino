@@ -281,6 +281,9 @@ Convolution::Convolution(const std::shared_ptr<ngraph::Node>& op, const GraphCon
         paddingR = groupConvolutionOp->get_pads_end();
         autoPadding = one_of(groupConvolutionOp->get_auto_pad(), ov::op::PadType::SAME_UPPER, ov::op::PadType::SAME_LOWER);
     }
+    convAttrs.paddingL = paddingL;
+    convAttrs.paddingR = paddingR;
+    convAttrs.stride = stride;
 }
 
 bool Convolution::canBeExecutedInInt8() const {
@@ -376,6 +379,7 @@ void Convolution::getSupportedDescriptors() {
     bool enforceBrgconv = false;
     attrs.reserve(2);
     withBiases = getOriginalInputsNumber() == 3;
+    convAttrs.withBiases = withBiases;
 
     if (!implPriorities.empty()) {
         isPrimitivesPriorityDefined = true;
@@ -773,8 +777,22 @@ void Convolution::initSupportedPrimitiveDescriptors() {
                 impl_desc_type impl_type = parse_impl_name(itpd.impl_info_str());
                 if (impl_type & jit)
                     containJitImpl = true;
-
+#if defined(OPENVINO_ARCH_X86_64)
                 supportedPrimitiveDescriptors.emplace_back(config, impl_type);
+#else
+                std::vector<MemoryDescPtr> srcMemoryDescs;
+                for (int i = 0; i < config.inConfs.size(); i++) {
+                    srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
+                }
+                std::vector<MemoryDescPtr> dstMemoryDescs;
+                for (int i = 0; i < config.outConfs.size(); i++) {
+                    dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
+                }
+
+                auto factory = std::make_shared<ConvExecutorFactory>(convAttrs, srcMemoryDescs, dstMemoryDescs,
+                                                                    std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
+                supportedPrimitiveDescriptors.push_back({config, /*impl_type*/impl_desc_type::ref_any, factory});
+#endif
                 if (!itpd.next_impl())
                     break;
             }
@@ -1139,9 +1157,11 @@ void Convolution::setDynamicBatchLim(int lim) {
     if (!execPtr) {
         IE_THROW() << "Can't set dynamic batch for Convolution node with name: " << getName() << ", because executor is not compiled";
     }
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
     if (execPtr->needReordering()) {
         IE_THROW() << "Can't execute Convolution node with dynamic batch via executor with reorders";
     }
+#endif
     Node::setDynamicBatchLim(lim);
 }
 
@@ -1284,10 +1304,11 @@ void Convolution::prepareParams() {
             IE_THROW() << "Input memory didn't allocate.";
     }
 
-    const NodeDesc *selected_pd = getSelectedPrimitiveDescriptor();
+    auto selected_pd = getSelectedPrimitiveDescriptor();
     if (selected_pd == nullptr)
         IE_THROW() << "Preferable primitive descriptor is not set for node " << getName() << ".";
 
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
     DnnlMemoryDescCPtr inMemoryDesc = srcMemPtr->GetDescWithType<DnnlMemoryDesc>();
     DnnlMemoryDescCPtr weightMemoryDesc = wghMemPtr->GetDescWithType<DnnlMemoryDesc>();
     DnnlMemoryDescCPtr outMemoryDesc = dstMemPtr->GetDescWithType<DnnlMemoryDesc>();
@@ -1461,6 +1482,23 @@ void Convolution::prepareParams() {
     } else {
         IE_THROW() << "Primitive descriptor was not found for node " << getName() << ".";
     }
+#else
+        std::vector<MemoryDescPtr> srcMemoryDescs;
+        for (int i = 0; i < getOriginalInputsNumber(); i++) {
+            srcMemoryDescs.push_back(getParentEdgeAt(i)->getMemoryPtr()->getDescPtr());
+        }
+        std::vector<MemoryDescPtr> dstMemoryDescs;
+        for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+            dstMemoryDescs.push_back(getChildEdgeAt(i)->getMemoryPtr()->getDescPtr());
+        }
+
+        dnnl::primitive_attr attr;
+        setPostOps(attr, dstMemoryDescs[0]->getShape().getStaticDims(), preferLegacyPostOps, true);
+
+        execPtr = selected_pd->getExecutorFactoryAs<ConvExecutorFactory>()->makeExecutor(convAttrs, srcMemoryDescs,
+        dstMemoryDescs, attr/*, std::make_shared<ExecutorContext>(context, getPrimitivesPriority())*/);
+        selected_pd->setImplementationType(execPtr->getImplType());
+#endif
 }
 
 Convolution::ConvolutionExecutor::ConvolutionExecutor(const dnnl::convolution_forward::primitive_desc& pd,
@@ -1487,8 +1525,20 @@ void Convolution::execute(dnnl::stream strm) {
     if (!execPtr) {
         IE_THROW() << "Can't execute Convolution node with name: " << getName() << ", because executor is not compiled";
     }
-
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
     execPtr->exec(primArgs, strm);
+#else
+        std::vector<MemoryCPtr> srcMemory;
+    for (int i = 0; i < getOriginalInputsNumber(); i++) {
+        srcMemory.push_back(getParentEdgeAt(i)->getMemoryPtr());
+    }
+    std::vector<MemoryPtr> dstMemory;
+    for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+        dstMemory.push_back(getChildEdgeAt(i)->getMemoryPtr());
+    }
+    //TODO: need to pass post ops data
+    execPtr->exec(srcMemory, dstMemory, nullptr);
+#endif
 }
 
 void Convolution::executeDynamicImpl(dnnl::stream strm) {

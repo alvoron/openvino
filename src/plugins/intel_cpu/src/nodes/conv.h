@@ -11,6 +11,8 @@
 #include <vector>
 #include "common/dnnl_executor.h"
 
+#include "executors/conv_list.hpp"
+
 namespace ov {
 namespace intel_cpu {
 namespace node {
@@ -86,7 +88,6 @@ private:
     class FusedSubgraph;
     using FusedSubgraphPtr = std::shared_ptr<FusedSubgraph>;
     using executorPtr = std::shared_ptr<DnnlExecutor>;
-    executorPtr execPtr = nullptr;
 
     class ConvolutionExecutor : public DnnlExecutor {
         public:
@@ -171,8 +172,11 @@ private:
     // TODO: migrate on convolution_auto algorithm for x64
 #if defined(OPENVINO_ARCH_X86_64)
     const dnnl::algorithm baseConvAlgorithm = dnnl::algorithm::convolution_direct;
+    executorPtr execPtr = nullptr;
 #else
     const dnnl::algorithm baseConvAlgorithm = dnnl::algorithm::convolution_auto;
+    ConvAttrs convAttrs;
+    std::shared_ptr<ConvExecutor> execPtr = nullptr;
 #endif
 };
 

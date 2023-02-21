@@ -272,6 +272,7 @@ std::vector<CPUSpecificParams> filterCPUInfoForDevice_BF16(std::vector<CPUSpecif
 /* COMMON PARAMS */
 const std::vector<fusingSpecificParams> fusingParamsSet{
         emptyFusingSpec,
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
         // eltwise
         fusingRelu,
         fusingPRelu1DScaleShift,
@@ -285,10 +286,12 @@ const std::vector<fusingSpecificParams> fusingParamsSet{
         fusingSum,
         // bias
         fusingAddPerChannel
+#endif
 };
 
 const std::vector<fusingSpecificParams> fusingParamsSetBF16{
         emptyFusingSpec,
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
         // eltwise
         fusingRelu,
         // depthwise
@@ -297,6 +300,7 @@ const std::vector<fusingSpecificParams> fusingParamsSetBF16{
         fusingSum,
         // bias
         fusingAddPerChannel
+#endif
 };
 
 /* ============= Convolution params (GEMM layout) ============= */
@@ -473,6 +477,7 @@ const auto convParams_ExplicitPadding_GEMM_1D = ::testing::Combine(
 );
 
 const std::vector<CPUSpecificParams> CPUParams_GEMM_1D = {
+        conv_ref_1D,
         conv_gemm_1D,
         conv_gemm_1D_nspc
 };
@@ -553,6 +558,7 @@ const auto convParams_ExplicitPadding_GEMM_2D_dilated = ::testing::Combine(
 );
 
 const std::vector<CPUSpecificParams> CPUParams_GEMM_2D = {
+        conv_ref_2D,
         conv_gemm_2D,
         conv_gemm_2D_nspc
 };
@@ -688,6 +694,7 @@ const auto convParams_ExplicitPadding_GEMM_3D_dilated = ::testing::Combine(
 );
 
 const std::vector<CPUSpecificParams> CPUParams_GEMM_3D = {
+        conv_ref_3D,
         conv_gemm_3D,
         conv_gemm_3D_nspc
 };
@@ -800,6 +807,7 @@ const auto convParams_ExplicitPadding_1D = ::testing::Combine(
 );
 
 const std::vector<CPUSpecificParams> CPUParams_1D = {
+        conv_ref_1D,
         conv_sse42_1D,
         conv_avx2_1D,
         conv_avx512_1D,
@@ -853,6 +861,7 @@ INSTANTIATE_TEST_SUITE_P(smoke_Conv_1D_I8, ConvolutionLayerCPUTest,
                          ConvolutionLayerCPUTest::getTestCaseName);
 
 const std::vector<CPUSpecificParams> CPUParams_1D_plain_to_blocked = {
+        conv_ref_1D,
         conv_sse42_plain_to_blocked_1D,
         conv_avx2_plain_to_blocked_1D,
         conv_avx512_plain_to_blocked_1D,
@@ -908,6 +917,7 @@ const auto convParams_ExplicitPadding_2D_dilated = ::testing::Combine(
 );
 
 const std::vector<CPUSpecificParams> CPUParams_2D = {
+        conv_ref_2D,
         conv_sse42_2D,
         conv_avx2_2D,
         conv_avx512_2D,
@@ -1058,6 +1068,7 @@ INSTANTIATE_TEST_SUITE_P(Conv_2D_I8_dilated, ConvolutionLayerCPUTest,
                          ConvolutionLayerCPUTest::getTestCaseName);
 
 const std::vector<CPUSpecificParams> CPUParams_2D_plain_to_blocked = {
+        conv_ref_2D,
         conv_sse42_plain_to_blocked_2D,
         conv_avx2_plain_to_blocked_2D,
         conv_avx512_plain_to_blocked_2D,
@@ -1187,6 +1198,7 @@ const auto convParams_ExplicitPadding_3D_dilated = ::testing::Combine(
 
 const std::vector<CPUSpecificParams> CPUParams_3D = {
         //conv_sse42_3D, // not supported jit_sse42 for 3d
+        conv_ref_3D,
         conv_avx2_3D,
         conv_avx512_3D,
         conv_avx2_3D_nspc,
@@ -1295,6 +1307,7 @@ INSTANTIATE_TEST_SUITE_P(Conv_3D_I8_dilated, ConvolutionLayerCPUTest,
                          ConvolutionLayerCPUTest::getTestCaseName);
 
 const std::vector<CPUSpecificParams> CPUParams_3D_plain_to_blocked = {
+        conv_ref_3D,
         conv_avx2_plain_to_blocked_3D,
         conv_avx512_plain_to_blocked_3D,
 };
@@ -1368,6 +1381,7 @@ const auto convParams_ExplicitPadding_1x1_1D = ::testing::Combine(
 );
 
 const std::vector<CPUSpecificParams> CPUParams_1x1_1D = {
+        conv_ref_1D,
         conv_sse42_1D_1x1,
         conv_avx2_1D_1x1,
         conv_avx512_1D_1x1,
@@ -1433,6 +1447,7 @@ const auto convParams_ExplicitPadding_1x1_2D = ::testing::Combine(
 );
 
 const std::vector<CPUSpecificParams> CPUParams_1x1_2D = {
+        conv_ref_2D,
         conv_sse42_2D_1x1,
         conv_avx2_2D_1x1,
         conv_avx512_2D_1x1,
@@ -1490,6 +1505,7 @@ INSTANTIATE_TEST_SUITE_P(smoke_Conv_2D_1x1_I8, ConvolutionLayerCPUTest,
 /* ============= Convolution planar params (2D) ============= */
 const std::vector<CPUSpecificParams> CPUParams_Jit_Planar_2D = {
         // sse42 is not supported
+        conv_ref_2D,
         conv_avx2_planar_2D,
         conv_avx512_planar_2D,
 };
@@ -1545,6 +1561,7 @@ INSTANTIATE_TEST_SUITE_P(Conv_2D_Jit_Planar_FP32_dilated, ConvolutionLayerCPUTes
 /* ============= Convolution planar params (3D) ============= */
 const std::vector<CPUSpecificParams> CPUParams_Jit_Planar_3D = {
         // sse42 is not supported
+        conv_ref_3D,
         conv_avx2_planar_3D,
         conv_avx512_planar_3D,
 };

@@ -284,6 +284,7 @@ Convolution::Convolution(const std::shared_ptr<ngraph::Node>& op, const GraphCon
     convAttrs.paddingL = paddingL;
     convAttrs.paddingR = paddingR;
     convAttrs.stride = stride;
+    convAttrs.dilation = dilation;
 }
 
 bool Convolution::canBeExecutedInInt8() const {
@@ -966,6 +967,7 @@ void Convolution::SetPostOpsAndZeroPoints(std::vector<dnnl::primitive_attr> &att
 }
 
 void Convolution::initDescriptor(const NodeConfig& config) {
+#if defined(OPENVINO_ARCH_X86_64)
     auto *selectedPD = getSelectedPrimitiveDescriptor();
     if (!selectedPD) {
         return;
@@ -1069,6 +1071,7 @@ void Convolution::initDescriptor(const NodeConfig& config) {
         }
     }
     selectedPD->setConfig(rightConfig);
+#endif
 }
 
 void Convolution::filterSupportedPrimitiveDescriptors() {

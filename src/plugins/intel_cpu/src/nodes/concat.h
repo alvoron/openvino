@@ -9,6 +9,8 @@
 #include <string>
 #include <ie_precision.hpp>
 
+#include "executors/concat_list.hpp"
+
 namespace ov {
 namespace intel_cpu {
 namespace node {
@@ -51,6 +53,9 @@ private:
     InferenceEngine::Precision outputPrecision = InferenceEngine::Precision::FP32;
     bool canExecRef = false;
     static constexpr size_t MAX_RANK_REF = 6;
+
+    ConcatAttrs concatAttrs;
+    std::shared_ptr<ConcatExecutor> execPtr = nullptr;
 };
 
 }   // namespace node

@@ -22,6 +22,11 @@
 #include "common/cpu_memcpy.h"
 #include "common/blocked_desc_creator.h"
 #include <memory_desc/cpu_memory_desc_utils.h>
+
+#if defined(OV_CPU_WITH_ACL)
+#    include "executors/acl/acl_utils.hpp"
+#endif
+
 using namespace dnnl;
 using namespace InferenceEngine;
 
@@ -66,6 +71,7 @@ Concat::Concat(const std::shared_ptr<ngraph::Node>& op, const GraphContext::CPtr
         IE_THROW() << "Concat node with name '" << getName() << "' has invalid value of axis parameter: " << axis;
     }
     this->axis = axis;
+    concatAttrs.axis = axis;
 }
 
 void Concat::getSupportedDescriptors() {
@@ -167,10 +173,25 @@ void Concat::initSupportedPrimitiveDescriptors() {
                 config.inConfs[i].setMemDesc(desc, BLOCKED_DESC_EMPTY_MASK);
             }
         }
+#if defined(OPENVINO_ARCH_X86_64)
         supportedPrimitiveDescriptors.emplace_back(config, impl_desc_type::ref);
         if (itr->first != LayoutType::nspc) {
             pdIndexesToReuse.push_back(supportedPrimitiveDescriptors.size() - 1);
         }
+#else
+        std::vector<MemoryDescPtr> srcMemoryDescs;
+        for (int i = 0; i < config.inConfs.size(); i++) {
+            srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
+        }
+        std::vector<MemoryDescPtr> dstMemoryDescs;
+        for (int i = 0; i < config.outConfs.size(); i++) {
+            dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
+        }
+
+        auto factory = std::make_shared<ConcatExecutorFactory>(concatAttrs, srcMemoryDescs, dstMemoryDescs,
+                                                               std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
+        supportedPrimitiveDescriptors.push_back({config, impl_desc_type::ref_any, factory});
+#endif
     }
 
     // required to prevent incorrect memory sharing of a constant with other tensors on edges
@@ -218,7 +239,22 @@ void Concat::initSupportedPrimitiveDescriptors() {
             config.inConfs[i].inPlace(0);
             config.inConfs[i].setMemDesc(std::make_shared<CpuBlockedMemoryDesc>(inputPrecision, shape, srcBlkDims, order, offset, offsets, strides), mask);
         }
+#if defined(OPENVINO_ARCH_X86_64)
         supportedPrimitiveDescriptors.emplace_back(config, impl_desc_type::unknown);
+#else
+        std::vector<MemoryDescPtr> srcMemoryDescs;
+        for (int i = 0; i < config.inConfs.size(); i++) {
+            srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
+        }
+        std::vector<MemoryDescPtr> dstMemoryDescs;
+        for (int i = 0; i < config.outConfs.size(); i++) {
+            dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
+        }
+
+        auto factory = std::make_shared<ConcatExecutorFactory>(concatAttrs, srcMemoryDescs, dstMemoryDescs,
+                                                               std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
+        supportedPrimitiveDescriptors.push_back({config, impl_desc_type::ref_any, factory});
+#endif
     }
 }
 
@@ -354,6 +390,7 @@ bool Concat::needPrepareParams() const {
 }
 
 void Concat::prepareParams() {
+#if defined(OPENVINO_ARCH_X86_64)
     if (canOptimizeNspc || isOptimized())
         return;
 
@@ -428,6 +465,29 @@ void Concat::prepareParams() {
         auto primitive_desc = concat::primitive_desc(desc, static_cast<int>(axis), srcs_d, getEngine());
         prim.reset(new concat(primitive_desc));
     }
+#else
+    auto& dstMemPtr = getChildEdgeAt(0)->getMemoryPtr();
+    auto& srcMemPtr = getParentEdgeAt(0)->getMemoryPtr();
+    if (!dstMemPtr || !dstMemPtr->isAllocated())
+        IE_THROW() << "Destination memory didn't allocate.";
+    if (!srcMemPtr || !srcMemPtr->isAllocated())
+        IE_THROW() << "Input memory didn't allocate.";
+    std::vector<MemoryDescPtr> srcMemoryDescs;
+        for (int i = 0; i < getOriginalInputsNumber(); i++) {
+        srcMemoryDescs.push_back(getParentEdgeAt(i)->getMemoryPtr()->getDescPtr());
+        }
+    std::vector<MemoryDescPtr> dstMemoryDescs;
+        for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+        dstMemoryDescs.push_back(getChildEdgeAt(i)->getMemoryPtr()->getDescPtr());
+        }
+    dnnl::primitive_attr attr;
+    //setPostOps(attr);
+    auto selectedPD = getSelectedPrimitiveDescriptor();
+    std::cout << "before execPtr creation" << std::endl;
+    execPtr = selectedPD->getExecutorFactoryAs<ConcatExecutorFactory>()->makeExecutor(concatAttrs, srcMemoryDescs, dstMemoryDescs, attr);
+    std::cout << "execPtr created: " << execPtr << std::endl;
+    selectedPD->setImplementationType(execPtr->getImplType());
+#endif
 }
 
 size_t Concat::inverseOrder(const SizeVector& order, size_t axis) {
@@ -533,6 +593,7 @@ void Concat::initOptimalPrimitiveDescriptor() {
 }
 
 void Concat::execute(dnnl::stream strm) {
+#if defined(OPENVINO_ARCH_X86_64)
     if (isOptimized()) {
         return;
     }
@@ -559,6 +620,22 @@ void Concat::execute(dnnl::stream strm) {
         }
         (*prim).execute(strm, mem_ags);
     }
+#else
+    if (!execPtr) {
+        IE_THROW() << "Can't execute Concat node. Executor is not created";
+    }
+
+    std::vector<MemoryCPtr> srcMemory;
+    for (int i = 0; i < getOriginalInputsNumber(); i++) {
+        srcMemory.push_back(getParentEdgeAt(i)->getMemoryPtr());
+    }
+    std::vector<MemoryPtr> dstMemory;
+    for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+        dstMemory.push_back(getChildEdgeAt(i)->getMemoryPtr());
+    }
+
+    execPtr->exec(srcMemory, dstMemory, postOpsArgs);
+#endif
 }
 
 InferenceEngine::Precision Concat::getRuntimePrecision() const {

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "reduce.hpp"
+#include "nodes/executors/reduce.hpp"
 
 namespace ov {
 namespace intel_cpu {

@@ -15,7 +15,6 @@ bool RefReduceExecutor::init(const ReduceAttrs& reduceAttrs,
                           const std::vector<MemoryDescPtr>& srcDescs,
                           const std::vector<MemoryDescPtr>& dstDescs,
                           const dnnl::primitive_attr &attr) {
-    std::cout << "RefReduceExecutor::init" << std::endl;
     this->reduceAttrs = reduceAttrs;
 
     if (srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 ||
@@ -28,13 +27,10 @@ bool RefReduceExecutor::init(const ReduceAttrs& reduceAttrs,
 
     src_dims = srcDescs[0]->getShape().getDims();
     calc_process_dst_dims(dstDescs[0]->getShape().getStaticDims());
-
-    std::cout << "RefReduceExecutor::init - true" << std::endl;
     return true;
 }
 
 void RefReduceExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, std::unordered_map<int, MemoryPtr> postOpsArgs) {
-    std::cout << "RefReduceExecutor::exec" << std::endl;
     errorPrefix = "Reduce node with name '" + reduceAttrs.nodeName + "'";
     switch (reduceAttrs.operation) {
         case Algorithm::ReduceAnd:

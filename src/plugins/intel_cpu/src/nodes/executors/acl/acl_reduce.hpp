@@ -42,13 +42,12 @@ public:
     bool isSupported(const ReduceAttrs& reduceAttrs,
                      const std::vector<MemoryDescPtr>& srcDescs,
                      const std::vector<MemoryDescPtr>& dstDescs) const override {
-
         if (srcDescs[0]->getPrecision() != dstDescs[0]->getPrecision() ||
            (srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 &&
             dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP16 &&
             dstDescs[0]->getPrecision() != InferenceEngine::Precision::I32))
             return false;
- 
+
         return true;
     }
 

@@ -7,6 +7,9 @@
 #include "executor.hpp"
 
 #include "mvn.hpp"
+#if defined(OV_CPU_WITH_ACL)
+#include "acl/acl_mvn.hpp"
+#endif
 #include "x64/jit_mvn.hpp"
 #include "common/ref_mvn.hpp"
 
@@ -55,7 +58,7 @@ public:
                     };
 
                     auto key = JitMVNExecutor::Key(mvnAttrs, srcDescs, dstDescs, attr);
-                    auto res = context->getRuntimeCache()->getOrCreate(key, builder);
+                    auto res = context->getRuntimeCache().lock()->getOrCreate(key, builder);
                     return res.first;
                 } break;
 #endif
@@ -70,7 +73,6 @@ public:
             MVNExecutorPtr ptr = nullptr;
             return ptr;
         };
-
 
         if (chosenDesc) {
             if (auto executor = build(chosenDesc)) {

@@ -234,7 +234,6 @@ void Transformations::PreLpt(const std::vector<ov::element::Type>& defaultPrecis
         CPU_LPT_SCOPE(LowPrecisionTransformations_Part2);
         CPU_REGISTER_PASS_COMMON(manager, ngraph::pass::low_precision::ConvertSubtractConstant, defaultPrecisions);
     }
-
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::Validate);
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::ConvertPrecision, precisions, type_to_fuse);
     CPU_REGISTER_PASS_COMMON(manager, ov::pass::EliminateConvert);

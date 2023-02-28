@@ -14,18 +14,13 @@ ngraph::matcher_pass_callback ov::intel_cpu::ConvertReduceMultiAxisBase::convert
     return [&](ngraph::pattern::Matcher& m) {
         auto reduce = m.get_match_root();
         if (!std::dynamic_pointer_cast<T>(reduce)) {
-            std::cout << "ConvertReduceMultiAxisBase, exiting1..." << std::endl;
             return false;
         }
-
         if (ngraph::shape_size(reduce->input_value(1).get_shape()) <= 1) {
-            std::cout << "ConvertReduceMultiAxisBase, exiting2..." << std::endl;
             return false;
         }
-
         auto reduction_axes = std::dynamic_pointer_cast<ov::opset8::Constant>(reduce->input_value(1).get_node_shared_ptr());
         if (!reduction_axes) {
-            std::cout << "Reduce op only supports constant multiple reduction axes, exiting..." << std::endl;
             return false;
         }
         auto axes = reduction_axes->cast_vector<int64_t>();

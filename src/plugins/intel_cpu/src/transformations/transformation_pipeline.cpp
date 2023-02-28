@@ -386,8 +386,6 @@ void Transformations::PreLpt(const std::vector<ov::element::Type>& defaultPrecis
     CPU_DISABLE_PASS_COMMON(manager, ov::pass::ConvertShuffleChannels3);
     CPU_DISABLE_PASS_COMMON(manager, ov::pass::Gelu7Downgrade);
     CPU_DISABLE_PASS_COMMON(manager, ov::pass::HSwishDecomposition);
-    CPU_DISABLE_PASS_COMMON(manager, ov::pass::ReduceL1Decomposition);
-    CPU_DISABLE_PASS_COMMON(manager, ov::pass::ReduceL2Decomposition);
     CPU_DISABLE_PASS_COMMON(manager, ov::pass::SoftPlusDecomposition);
     CPU_DISABLE_PASS_COMMON(manager, ov::pass::HSigmoidDecomposition);
     CPU_DISABLE_PASS_COMMON(manager, ov::pass::ConvertMod);
@@ -406,6 +404,9 @@ void Transformations::PreLpt(const std::vector<ov::element::Type>& defaultPrecis
     CPU_DISABLE_PASS_COMMON(manager, ov::pass::ConvertROIAlign9To3);
     CPU_DISABLE_PASS_COMMON(manager, ov::pass::SoftSignDecomposition);
     CPU_DISABLE_PASS_COMMON(manager, ov::pass::UniqueDecomposition);
+
+    CPU_DISABLE_PASS_X64(manager, ov::pass::ReduceL1Decomposition);
+    CPU_DISABLE_PASS_X64(manager, ov::pass::ReduceL2Decomposition);
 
     CPU_ENABLE_PASS_COMMON(manager, ov::pass::NormalizeL2Decomposition);
     CPU_ENABLE_PASS_COMMON(manager, ov::pass::ConvertInterpolate1ToInterpolate4);

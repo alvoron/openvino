@@ -11,6 +11,8 @@
 #include <vector>
 #include "common/dnnl_executor.h"
 
+#include "executors/deconv_list.hpp"
+
 namespace ov {
 namespace intel_cpu {
 namespace node {
@@ -60,9 +62,14 @@ protected:
     std::vector<dnnl::memory::format_tag> getAvailableFormatsForDims(const Shape& dims) const override;
 
 private:
+#if defined(OPENVINO_ARCH_X86_64)
     using executorPtr = std::shared_ptr<DnnlExecutor>;
     executorPtr execPtr = nullptr;
-
+#else
+    DeconvAttrs deconvAttrs;
+    using executorPtr = std::shared_ptr<DeconvExecutor>;
+    std::shared_ptr<DeconvExecutor> execPtr = nullptr;
+#endif
     class DeconvExecutorDefault : public DnnlExecutor {
         public:
             DeconvExecutorDefault(const dnnl::convolution_backward_data::primitive_desc& pd,

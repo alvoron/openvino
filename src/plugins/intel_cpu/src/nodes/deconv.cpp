@@ -224,6 +224,9 @@ Deconvolution::Deconvolution(const std::shared_ptr<ngraph::Node>& op,
     } else {
         IE_THROW(NotImplemented) << errorMessage;
     }
+    deconvAttrs.paddingL = paddingL;
+    deconvAttrs.paddingR = paddingR;
+    deconvAttrs.stride = stride;
 
     attr = std::make_shared<dnnl::primitive_attr>();
 }
@@ -391,6 +394,7 @@ void Deconvolution::getSupportedDescriptors() {
         return;
     isInt8 = canBeExecutedInInt8();
     withBiases = externOutShape ? getOriginalInputsNumber() == 4 : getOriginalInputsNumber() == 3;
+    deconvAttrs.withBiases = withBiases;
     //ONEDNN deconvolution_fwd_t primitive can support bias fusing.
     //ONEDNN convolution_data_bwd_t can't support bias fusing.
     //Current only int8 precision choose deconvolution_fwd_t.
@@ -585,9 +589,11 @@ void Deconvolution::setDynamicBatchLim(int lim) {
     if (!execPtr) {
         IE_THROW() << "Can't set dynamic batch for Deconvolution node with name: " << getName() << ", because executor is not compiled";
     }
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
     if (execPtr->needReordering()) {
         IE_THROW() << "Can't execute Deconvolution node with dynamic batch via executor with reorders";
     }
+#endif
     Node::setDynamicBatchLim(lim);
 }
 
@@ -595,12 +601,24 @@ void Deconvolution::execute(dnnl::stream strm) {
     if (!execPtr) {
         IE_THROW() << "Can't execute Deconvolution node with name: " << getName() << ", because executor is not compiled";
     }
-
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
     execPtr->exec(primArgs, strm);
 
     if (externOutShape) {
         lastOutputSpatialDims = readOutputSpatialDims();
     }
+#else
+    std::vector<MemoryCPtr> srcMemory;
+    for (int i = 0; i < getOriginalInputsNumber(); i++) {
+        srcMemory.push_back(getParentEdgeAt(i)->getMemoryPtr());
+    }
+    std::vector<MemoryPtr> dstMemory;
+    for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+        dstMemory.push_back(getChildEdgeAt(i)->getMemoryPtr());
+    }
+    //TODO: need to pass post ops data
+    execPtr->exec(srcMemory, dstMemory, nullptr);
+#endif
 }
 
 namespace {
@@ -787,7 +805,7 @@ void Deconvolution::prepareParams() {
         IE_THROW() << "Input memory has not been allocated.";
     if (!wghMemPtr || !wghMemPtr->isAllocated())
         IE_THROW() << "Weight memory has not been allocated.";
-    const NodeDesc *selected_pd = getSelectedPrimitiveDescriptor();
+    auto selected_pd = getSelectedPrimitiveDescriptor();
     if (selected_pd == nullptr)
         IE_THROW() << "Preferable primitive descriptor is not set for node " << getName() << ".";
 
@@ -837,7 +855,7 @@ void Deconvolution::prepareParams() {
                      isInt8,
                      *pAttrLocal,
                      selected_pd->getImplementationType()};
-
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
     auto engine = getEngine();
     auto builder = [&engine](const DeconvKey& key) -> executorPtr {
         std::shared_ptr<DnnlDesriptor> desc;
@@ -958,6 +976,40 @@ void Deconvolution::prepareParams() {
     } else {
         IE_THROW() << "Primitive descriptor was not found for node " << getName() << ".";
     }
+#else
+        /*std::vector<MemoryDescPtr> srcMemoryDescs;
+        for (int i = 0; i < selected_pd->getConfig().inConfs.size(); i++) {
+            srcMemoryDescs.push_back(selected_pd->getConfig().inConfs[i].getMemDesc());
+        }
+        std::vector<MemoryDescPtr> dstMemoryDescs;
+        for (int i = 0; i < selected_pd->getConfig().outConfs.size(); i++) {
+            dstMemoryDescs.push_back(selected_pd->getConfig().outConfs[i].getMemDesc());
+        }*/
+
+        std::vector<MemoryDescPtr> srcMemoryDescs;
+        for (int i = 0; i < getOriginalInputsNumber(); i++) {
+            srcMemoryDescs.push_back(getParentEdgeAt(i)->getMemoryPtr()->getDescPtr());
+        }
+        std::vector<MemoryDescPtr> dstMemoryDescs;
+        for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+            dstMemoryDescs.push_back(getChildEdgeAt(i)->getMemoryPtr()->getDescPtr());
+        }
+
+        NodeConfig config = selected_pd->getConfig();
+        auto factory = std::make_shared<DeconvExecutorFactory>(deconvAttrs, srcMemoryDescs, dstMemoryDescs,
+                                                               std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
+        //WA to check th list
+        supportedPrimitiveDescriptors.clear();
+        supportedPrimitiveDescriptors.push_back({config, /*impl_type*/impl_desc_type::ref_any, factory});
+
+        dnnl::primitive_attr attr;
+        setPostOps(attr, dstMemoryDescs[0]->getShape().getStaticDims());
+
+        auto selectedPD = getSelectedPrimitiveDescriptor();
+        execPtr = selectedPD->getExecutorFactoryAs<DeconvExecutorFactory>()->makeExecutor(deconvAttrs, srcMemoryDescs,
+        dstMemoryDescs, attr/*, std::make_shared<ExecutorContext>(context, getPrimitivesPriority())*/);
+        selectedPD->setImplementationType(execPtr->getImplType());
+#endif
 }
 
 void Deconvolution::createDescriptor(const std::vector<MemoryDescPtr> &inputDesc,

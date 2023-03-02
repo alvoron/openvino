@@ -10,7 +10,11 @@
 namespace ov {
 namespace intel_cpu {
 
-
+/**
+* @brief Return ComputeLibrary TensorShape with reverted layout schema used in ACL 
+* @param dims vector of dimensions to convert
+* @return ComputeLibrary TensorShape object
+*/
 inline arm_compute::TensorShape shapeCast(const VectorDims& dims) {
     arm_compute::TensorShape tensorShape;
     for (std::size_t i = 0; i < dims.size(); ++i) {

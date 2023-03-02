@@ -44,36 +44,44 @@ bool AclReduceExecutor::init(const ReduceAttrs& reduceAttrs,
     TensorInfo dstTensorInfo = TensorInfo(shapeCast(dstDims), 1,
     precisionToAclDataType(dstDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(dstDescs[0]));
 
-    arm_compute::Coordinates axesMean;
-    if (reduceAttrs.operation == Algorithm::ReduceMean) {
-        auto srcDims1 = srcDescs[1]->getShape().getStaticDims();
-        for (size_t i = 0; i < reduceAttrs.axes.size(); ++i) {
-            auto pos = axisCast(i, reduceAttrs.axes.size());
-            axesMean.set(pos, reduceAttrs.axes[i]);
-        }
-        if (!arm_compute::NEReduceMean::validate(&srcTensorInfo, axesMean, reduceAttrs.keepDims, &dstTensorInfo)) {
-            return false;
-        }
-    } else {
-        if (reduceAttrs.axes.size() != 1) {
-            return false;
-        }
-        if (!arm_compute::NEReductionOperation::validate(&srcTensorInfo, &dstTensorInfo, axisCast(reduceAttrs.axes[0], srcDims.size()),
-                                                         getAclReductionOperationByAlgorithm(reduceAttrs.operation), reduceAttrs.keepDims)) {
-            return false;
-        }
-    }
-
     srcTensor.allocator()->init(srcTensorInfo);
     dstTensor.allocator()->init(dstTensorInfo);
 
-    if (reduceAttrs.operation == Algorithm::ReduceMean) {
-        reduceMean = std::make_unique<arm_compute::NEReduceMean>();
-        reduceMean->configure(&srcTensor, axesMean, reduceAttrs.keepDims, &dstTensor);
-    } else {
-        reduce = std::make_unique<arm_compute::NEReductionOperation>();
-        reduce->configure(&srcTensor, &dstTensor, axisCast(reduceAttrs.axes[0], srcDims.size()),
-                          getAclReductionOperationByAlgorithm(reduceAttrs.operation), reduceAttrs.keepDims);
+    switch (reduceAttrs.operation) {
+        case Algorithm::ReduceMean:
+            for (size_t i = 0; i < reduceAttrs.axes.size(); ++i) {
+                auto pos = axisCast(i, reduceAttrs.axes.size());
+                axesMean.set(pos, reduceAttrs.axes[i]);
+            }
+            if (!arm_compute::NEReduceMean::validate(&srcTensorInfo, axesMean, reduceAttrs.keepDims, &dstTensorInfo)) {
+                return false;
+            }
+            exec_func = [this]{
+                auto acl_op = std::make_unique<arm_compute::NEReduceMean>();
+                acl_op->configure(&srcTensor, axesMean, this->reduceAttrs.keepDims, &dstTensor);
+                acl_op->run();
+            };
+            break;
+        case Algorithm::ReduceMax:
+        case Algorithm::ReduceMin:
+        case Algorithm::ReduceSum:
+        case Algorithm::ReduceProd:
+            if (reduceAttrs.axes.size() != 1) {
+                return false;
+            }
+            if (!arm_compute::NEReductionOperation::validate(&srcTensorInfo, &dstTensorInfo, axisCast(reduceAttrs.axes[0], srcDims.size()),
+                                                            getAclReductionOperationByAlgorithm(reduceAttrs.operation), reduceAttrs.keepDims)) {
+                return false;
+            }
+            exec_func = [this, srcDims]{
+                auto acl_op = std::make_unique<arm_compute::NEReductionOperation>();
+                acl_op->configure(&srcTensor, &dstTensor, axisCast(this->reduceAttrs.axes[0], srcDims.size()),
+                                    getAclReductionOperationByAlgorithm(this->reduceAttrs.operation), this->reduceAttrs.keepDims);
+                acl_op->run();
+            };
+            break;
+        default:
+            IE_THROW() << "Unsupported operation type for ACL Reduce executor: " << static_cast<int>(reduceAttrs.operation);
     }
 
     return true;
@@ -83,11 +91,7 @@ void AclReduceExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vect
     srcTensor.allocator()->import_memory(src[0]->GetPtr());
     dstTensor.allocator()->import_memory(dst[0]->GetPtr());
 
-    if (this->reduceAttrs.operation == Algorithm::ReduceMean) {
-        reduceMean->run();
-    } else {
-        reduce->run();
-    }
+    exec_func();
 
     srcTensor.allocator()->free();
     dstTensor.allocator()->free();

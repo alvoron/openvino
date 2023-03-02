@@ -1764,7 +1764,6 @@ Reduce::Reduce(const std::shared_ptr<ngraph::Node>& op, const GraphContext::CPtr
         reduceAttrs.operation = algorithm;
         reduceAttrs.axes = raw_axes;
         reduceAttrs.keepDims = keep_dims;
-        reduceAttrs.nodeName = getName();
     } else {
         IE_THROW(NotImplemented) << errorMessage;
     }

@@ -31,7 +31,6 @@ bool RefReduceExecutor::init(const ReduceAttrs& reduceAttrs,
 }
 
 void RefReduceExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, std::unordered_map<int, MemoryPtr> postOpsArgs) {
-    errorPrefix = "Reduce node with name '" + reduceAttrs.nodeName + "'";
     switch (reduceAttrs.operation) {
         case Algorithm::ReduceAnd:
             reduce_ref_process(src, dst, 1, [](float x, float y)->float { return x && y; });
@@ -72,7 +71,7 @@ void RefReduceExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vect
             reduce_ref_process(src, dst, 0, [](float old, float y)->float { return old + y * y; });
             break;
     default:
-        IE_THROW() << errorPrefix << " gets unsupported reduce mode.";
+        IE_THROW() << "Reduce node gets unsupported reduce mode.";
     }
 }
 
@@ -85,7 +84,7 @@ inline void RefReduceExecutor::calc_process_dst_dims(const InferenceEngine::Size
         if (axis < 0)
             axis += src_dims.size();
         if (static_cast<size_t>(axis) > src_dims.size())
-            IE_THROW() << errorPrefix << axis << " " << src_dims.size() << " exceeds data tensor dimension on index to reduce";
+            IE_THROW() << "Reduce node " << axis << " " << src_dims.size() << " exceeds data tensor dimension on index to reduce";
         axes.insert(static_cast<size_t>(axis));
     }
     for (size_t i = 0; i < src_dims.size(); i++) {
@@ -105,10 +104,10 @@ inline void RefReduceExecutor::calc_process_dst_dims(const InferenceEngine::Size
             process_dst_dims.push_back(src_dims[i]);
         }
     }
-        for (size_t i = 0; i < std::min(out_dims.size(), dst_dims.size()); i++) {
-            if (out_dims[i] != dst_dims[i])
-                IE_THROW() << errorPrefix << "gets incorrect number of output dimensions!";
-        }
+    for (size_t i = 0; i < std::min(out_dims.size(), dst_dims.size()); i++) {
+        if (out_dims[i] != dst_dims[i])
+            IE_THROW() << "Reduce node gets incorrect number of output dimensions!";
+    }
 }
 
 void RefReduceExecutor::reduce_ref_process(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst,
@@ -198,7 +197,7 @@ inline void RefReduceExecutor::reduce_ref_map(float *out_ptr, size_t work_amount
             });
             break;
         default:
-            IE_THROW() << errorPrefix << "gets unsupported reduce mode.";
+            IE_THROW() << "Reduce node gets unsupported reduce mode.";
     }
 }
 

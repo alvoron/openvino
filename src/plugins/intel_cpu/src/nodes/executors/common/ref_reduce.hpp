@@ -34,8 +34,6 @@ private:
     InferenceEngine::SizeVector src_dims;
     InferenceEngine::SizeVector process_dst_dims;
     InferenceEngine::SizeVector axes_for_reduction;
-
-    std::string errorPrefix;
 };
 
 class RefReduceExecutorBuilder : public ReduceExecutorBuilder {

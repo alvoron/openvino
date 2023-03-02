@@ -28,13 +28,13 @@ public:
     }
 
 private:
+    std::function<void()> exec_func;
     ReduceAttrs reduceAttrs;
     impl_desc_type implType = impl_desc_type::acl;
 
+    arm_compute::Coordinates axesMean;
     arm_compute::Tensor srcTensor;
     arm_compute::Tensor dstTensor;
-    std::unique_ptr<arm_compute::NEReductionOperation> reduce = nullptr;
-    std::unique_ptr<arm_compute::NEReduceMean> reduceMean = nullptr;
 };
 
 class AclReduceExecutorBuilder : public ReduceExecutorBuilder {

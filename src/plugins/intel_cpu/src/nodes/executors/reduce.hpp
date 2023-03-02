@@ -13,7 +13,6 @@ namespace ov {
 namespace intel_cpu {
 
 struct ReduceAttrs {
-    std::string nodeName;
     std::vector<int> axes;
     Algorithm operation;
     bool keepDims;
@@ -32,25 +31,9 @@ public:
 
     virtual impl_desc_type getImplType() const = 0;
 
-    void setEngine(const dnnl::engine& engine) {
-        this->engine = engine;
-    }
-
-    void setScratchPad(const DnnlScratchPadPtr& scratchPad) {
-        this->scratchPad = scratchPad;
-    }
-
-    void setImplPriorities(const std::vector<impl_desc_type>& implPriorities) {
-        this->implPriorities = implPriorities;
-    }
-
 protected:
     ReduceAttrs reduceAttrs;
     const ExecutorContext::CPtr context;
-
-    dnnl::engine engine;
-    std::vector<impl_desc_type> implPriorities;
-    DnnlScratchPadPtr scratchPad = nullptr;
 };
 
 using ReduceExecutorPtr = std::shared_ptr<ReduceExecutor>;

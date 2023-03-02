@@ -45,22 +45,6 @@ public:
                                         const dnnl::primitive_attr &attr) {
         auto build = [&](const ReduceExecutorDesc* desc) {
             switch (desc->executorType) {
-#if defined(OPENVINO_ARCH_X86_64)
-                case ExecutorType::x64: {
-                    auto builder = [&](const JitReduceExecutor::Key& key) -> ReduceExecutorPtr {
-                        auto executor = desc->builder->makeExecutor(context);
-                        if (executor->init(reduceAttrs, srcDescs, dstDescs, attr)) {
-                            return executor;
-                        } else {
-                            return nullptr;
-                        }
-                    };
-
-                    auto key = JitReduceExecutor::Key(reduceAttrs, srcDescs, dstDescs, attr);
-                    auto res = runtimeCache->getOrCreate(key, builder);
-                    return res.first;
-                } break;
-#endif
                 default: {
                     auto executor = desc->builder->makeExecutor(context);
                     if (executor->init(reduceAttrs, srcDescs, dstDescs, attr)) {

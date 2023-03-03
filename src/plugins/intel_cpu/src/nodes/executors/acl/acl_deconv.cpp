@@ -34,6 +34,9 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
         std::cout << "non-BIAS mode" << std::endl;
     }
 
+    //it's a wierd WA to pass ACL check NEDeconvolutionLayer.cpp:127: Output's depth is invalid
+    dstDims[1] *= dstDims[0];
+    dstDims[0] = 1;
     TensorInfo srcTensorInfo = TensorInfo(shapeCast(srcDims), 1,
     precisionToAclDataType(srcDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[0]));
     TensorInfo weiTensorInfo = TensorInfo(shapeCast(weiDims), 1,
@@ -47,9 +50,16 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
     unsigned int pad_b = deconvAttrs.paddingR.at(0);
     unsigned int stride_x = deconvAttrs.stride.at(1);
     unsigned int stride_y = deconvAttrs.stride.at(0);
+    unsigned int dilation_x = deconvAttrs.dilation.at(1) + 1;
+    unsigned int dilation_y = deconvAttrs.dilation.at(0) + 1;
+
+    std::cout << "pad (l,r): " << pad_l << " " << pad_r << std::endl;
+    std::cout << "pad (t,b): " << pad_t << " " << pad_b << std::endl;
+    std::cout << "stride (x,y): " << stride_x << " " << stride_y << std::endl;
+    std::cout << "dilation (x,y): " << dilation_x << " " << dilation_y << std::endl;
 
     arm_compute::PadStrideInfo deconv_info(stride_x, stride_y, pad_l, pad_r, pad_t, pad_b, arm_compute::DimensionRoundingType::FLOOR);
-    arm_compute::Size2D dilation(deconvAttrs.dilation.at(1), deconvAttrs.dilation.at(0));
+    arm_compute::Size2D dilation(dilation_x, dilation_y);
 
     arm_compute::Status status = arm_compute::NEDeconvolutionLayer::validate(&srcTensorInfo,
                                                                            &weiTensorInfo,

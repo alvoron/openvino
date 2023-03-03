@@ -227,6 +227,7 @@ Deconvolution::Deconvolution(const std::shared_ptr<ngraph::Node>& op,
     deconvAttrs.paddingL = paddingL;
     deconvAttrs.paddingR = paddingR;
     deconvAttrs.stride = stride;
+    deconvAttrs.dilation = dilation;
 
     attr = std::make_shared<dnnl::primitive_attr>();
 }
@@ -977,15 +978,6 @@ void Deconvolution::prepareParams() {
         IE_THROW() << "Primitive descriptor was not found for node " << getName() << ".";
     }
 #else
-        /*std::vector<MemoryDescPtr> srcMemoryDescs;
-        for (int i = 0; i < selected_pd->getConfig().inConfs.size(); i++) {
-            srcMemoryDescs.push_back(selected_pd->getConfig().inConfs[i].getMemDesc());
-        }
-        std::vector<MemoryDescPtr> dstMemoryDescs;
-        for (int i = 0; i < selected_pd->getConfig().outConfs.size(); i++) {
-            dstMemoryDescs.push_back(selected_pd->getConfig().outConfs[i].getMemDesc());
-        }*/
-
         std::vector<MemoryDescPtr> srcMemoryDescs;
         for (int i = 0; i < getOriginalInputsNumber(); i++) {
             srcMemoryDescs.push_back(getParentEdgeAt(i)->getMemoryPtr()->getDescPtr());
@@ -995,25 +987,53 @@ void Deconvolution::prepareParams() {
             dstMemoryDescs.push_back(getChildEdgeAt(i)->getMemoryPtr()->getDescPtr());
         }
 
-        NodeConfig config = selected_pd->getConfig();
-        auto factory = std::make_shared<DeconvExecutorFactory>(deconvAttrs, srcMemoryDescs, dstMemoryDescs,
-                                                               std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
-        //WA to check th list
-        supportedPrimitiveDescriptors.clear();
-        supportedPrimitiveDescriptors.push_back({config, /*impl_type*/impl_desc_type::ref_any, factory});
+        execPtr = selected_pd->getExecutorFactoryAs<DeconvExecutorFactory>()->makeExecutor(deconvAttrs, srcMemoryDescs,
+        dstMemoryDescs, *attr);
+        selected_pd->setImplementationType(execPtr->getImplType());
+#endif
+}
 
-        dnnl::primitive_attr attr;
-        setPostOps(attr, dstMemoryDescs[0]->getShape().getStaticDims());
+void Deconvolution::initSupportedPrimitiveDescriptors() {
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
+    Node::initSupportedPrimitiveDescriptors();
+#else
+        auto& creatorsMap = BlockedDescCreator::getCommonCreators();
+        auto pushDesc = [&](LayoutType format) {
+            NodeConfig config;
+            config.dynBatchSupport = false;
+            config.inConfs.resize(getParentEdges().size());
+            config.outConfs.resize(getOriginalOutputsNumber());
 
-        auto selectedPD = getSelectedPrimitiveDescriptor();
-        execPtr = selectedPD->getExecutorFactoryAs<DeconvExecutorFactory>()->makeExecutor(deconvAttrs, srcMemoryDescs,
-        dstMemoryDescs, attr/*, std::make_shared<ExecutorContext>(context, getPrimitivesPriority())*/);
-        selectedPD->setImplementationType(execPtr->getImplType());
+        for (size_t i = 0; i < getParentEdges().size(); ++i) {
+            config.inConfs[i].setMemDesc(
+                creatorsMap.at(format)->createSharedDesc(getOriginalInputPrecisionAtPort(i), getInputShapeAtPort(i)));
+            //config.inConfs[i].inPlace(-1);
+            //config.inConfs[i].constant(false);
+        }
+            config.outConfs[0].setMemDesc(
+                creatorsMap.at(format)->createSharedDesc(getOriginalOutputPrecisionAtPort(0), getOutputShapeAtPort(0)));
+
+            std::vector<MemoryDescPtr> srcMemoryDescs;
+            for (int i = 0; i < config.inConfs.size(); i++) {
+                srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
+            }
+            std::vector<MemoryDescPtr> dstMemoryDescs;
+            for (int i = 0; i < config.outConfs.size(); i++) {
+                dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
+            }
+
+            auto factory = std::make_shared<DeconvExecutorFactory>(deconvAttrs, srcMemoryDescs, dstMemoryDescs,
+                                                           std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
+
+            supportedPrimitiveDescriptors.emplace_back(config, gemm_ref, factory);
+        };
+        pushDesc(LayoutType::ncsp);
 #endif
 }
 
 void Deconvolution::createDescriptor(const std::vector<MemoryDescPtr> &inputDesc,
                                                const std::vector<MemoryDescPtr> &outputDesc) {
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
     auto inDesc = inputDesc[0]->isDefined() ? inputDesc[0] : inputDesc[0]->cloneWithNewDims(inShape.getStaticDims());
     auto dnnlInDesc = MemoryDescUtils::convertToDnnlBlockedMemoryDesc(*inDesc);
     auto in_candidate = dnnlInDesc.getDnnlDesc();
@@ -1052,6 +1072,7 @@ void Deconvolution::createDescriptor(const std::vector<MemoryDescPtr> &inputDesc
             descs.emplace_back(deconv_desc, fwd_conv_pd);
         }
     }
+#endif
 }
 
 std::shared_ptr<MemoryDesc> Deconvolution::getSrcMemDesc(dnnl::primitive_desc_iterator &primitive_desc_it, size_t idx) {

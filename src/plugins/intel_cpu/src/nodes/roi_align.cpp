@@ -681,10 +681,10 @@ ROIAlign::ROIAlign(const std::shared_ptr<ngraph::Node>& op, const GraphContext::
         errorPrefix = "ROIPooling layer with name '" + getName() + "' ";
 
         auto roiAlign = ngraph::as_type_ptr<const ngraph::opset9::ROIAlign>(op);
-        pooledH = roiAlign->get_pooled_h();
-        pooledW = roiAlign->get_pooled_w();
-        spatialScale = roiAlign->get_spatial_scale();
-        samplingRatio = roiAlign->get_sampling_ratio();
+        roialignedAttrs.pooledH = roiAlign->get_pooled_h();
+        roialignedAttrs.pooledW = roiAlign->get_pooled_w();
+        roialignedAttrs.spatialScale = roiAlign->get_spatial_scale();
+        roialignedAttrs.samplingRatio = roiAlign->get_sampling_ratio();
         const ngPoolingMode m = roiAlign->get_mode();
         if (m == ngPoolingMode::MAX) {
             algorithm = Algorithm::ROIAlignMax;
@@ -693,11 +693,11 @@ ROIAlign::ROIAlign(const std::shared_ptr<ngraph::Node>& op, const GraphContext::
         }
         const ngAlignedMode mAligned = roiAlign->get_aligned_mode();
         if (mAligned == ngAlignedMode::ASYMMETRIC) {
-            alignedMode = ROIAlignedMode::ra_asymmetric;
+            roialignedAttrs.alignedMode = ROIAlignedMode::ra_asymmetric;
         } else if (mAligned == ngAlignedMode::HALF_PIXEL_FOR_NN) {
-            alignedMode = ROIAlignedMode::ra_half_pixel_for_nn;
+            roialignedAttrs.alignedMode = ROIAlignedMode::ra_half_pixel_for_nn;
         } else if (mAligned == ngAlignedMode::HALF_PIXEL) {
-            alignedMode = ROIAlignedMode::ra_half_pixel;
+            roialignedAttrs.alignedMode = ROIAlignedMode::ra_half_pixel;
         }
     } else {
         IE_THROW(NotImplemented) << errorMessage;
@@ -747,8 +747,8 @@ void ROIAlign::createJitKernel(const InferenceEngine::Precision& dataPrec, const
     jcp.data_prc = dataPrec;
     jcp.data_size = dataPrec.size();
     jcp.layout = selectLayout;
-    jcp.pooled_h = pooledH;
-    jcp.pooled_w = pooledW;
+    jcp.pooled_h = roialignedAttrs.pooledH;
+    jcp.pooled_w = roialignedAttrs.pooledW;
 
     if (mayiuse(cpu::x64::avx512_core)) {
         roi_align_kernel.reset(new jit_uni_roi_align_kernel_f32<cpu::x64::avx512_core>(jcp));
@@ -777,11 +777,6 @@ void ROIAlign::initSupportedPrimitiveDescriptors() {
         }
     }
 
-    NodeConfig config;
-    config.dynBatchSupport = false;
-    config.inConfs.resize(3);
-    config.outConfs.resize(1);
-
     impl_desc_type impl_type;
     if (mayiuse(cpu::x64::avx512_core)) {
         impl_type = impl_desc_type::jit_avx512;
@@ -806,12 +801,56 @@ void ROIAlign::initSupportedPrimitiveDescriptors() {
         }
     }
 
+    auto fill_port = [] (const PortConfigurator& portConfigurator, const Shape& shape,
+                         InferenceEngine::Precision prc, std::vector<PortConfig>& port) -> bool {
+        // In order to simplify particular node initialization logic we just don't add config in case target shape is not supported by blockedDescCreator.
+        // This should be suitable for major of scenarios since almost all nodes add `ncsp` blockedDescCreator which supports any shape rank.
+        if (shape.getRank() < portConfigurator.blockedDescCreator->getMinimalRank())
+            return false;
+
+        PortConfig portConfig;
+        portConfig.inPlace(portConfigurator.inPlace);
+        portConfig.constant(portConfigurator.constant);
+        portConfig.setMemDesc(portConfigurator.blockedDescCreator->createSharedDesc(prc, shape));
+
+        port.push_back(std::move(portConfig));
+
+        return true;
+    };
+
     for (auto fmts : supportedFormats) {
-        addSupportedPrimDesc({{fmts.first, inputPrec0},
-                              {LayoutType::ncsp, Precision::FP32},
-                              {LayoutType::ncsp, Precision::I32}},
-                             {{fmts.second, outputPrec}},
-                              impl_type);
+        std::vector<PortConfigurator> inPortConfigs = {{fmts.first, inputPrec0},
+                                                        {LayoutType::ncsp, Precision::FP32},
+                                                        {LayoutType::ncsp, Precision::I32}};
+    NodeConfig config;
+    for (size_t i = 0; i < inPortConfigs.size(); i++) {
+        auto shape = inPortConfigs[i].shape.getRank() == 0 ? getInputShapeAtPort(i) : inPortConfigs[i].shape;
+        auto prc = inPortConfigs[i].prc == InferenceEngine::Precision::UNSPECIFIED ? getOriginalInputPrecisionAtPort(i) : inPortConfigs[i].prc;
+        if (!fill_port(inPortConfigs[i], shape, prc, config.inConfs))
+            return;
+    }
+    PortConfigurator outPortConfigs = {fmts.second, outputPrec};
+    auto dims = outPortConfigs.shape.getRank() == 0 ? getOutputShapeAtPort(0) : outPortConfigs.shape;
+    auto prc = outPortConfigs.prc == InferenceEngine::Precision::UNSPECIFIED ? getOriginalOutputPrecisionAtPort(0) : outPortConfigs.prc;
+    if (!fill_port(outPortConfigs, dims, prc, config.outConfs))
+        return;
+
+#if defined(OPENVINO_ARCH_X86_64)
+    supportedPrimitiveDescriptors.push_back({config, impl_type});
+#else
+    std::vector<MemoryDescPtr> srcMemoryDescs;
+    for (int i = 0; i < config.inConfs.size(); i++) {
+        srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
+    }
+    std::vector<MemoryDescPtr> dstMemoryDescs;
+    for (int i = 0; i < config.outConfs.size(); i++) {
+        dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
+    }
+
+    auto factory = std::make_shared<ROIAlignExecutorFactory>(roialignedAttrs, srcMemoryDescs, dstMemoryDescs,
+                                                             std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
+    supportedPrimitiveDescriptors.push_back({config, impl_type, factory});
+#endif
     }
 }
 
@@ -822,7 +861,7 @@ void ROIAlign::createPrimitive() {
         IE_THROW() << errorPrefix << " did not allocate input memory";
     if (!dstMemPtr || !dstMemPtr->isAllocated())
         IE_THROW() << errorPrefix << " did not allocate destination memory";
-
+#if defined(OPENVINO_ARCH_X86_64)
     if (!roi_align_kernel) {
         ROIAlignLayoutType selectedLayout = ROIAlignLayoutType::nspc;
 
@@ -834,6 +873,22 @@ void ROIAlign::createPrimitive() {
         }
         createJitKernel(srcMemPtr->getDesc().getPrecision(), selectedLayout);
     }
+#else
+    std::vector<MemoryDescPtr> srcMemoryDescs;
+    for (int i = 0; i < getOriginalInputsNumber(); i++) {
+        srcMemoryDescs.push_back(getParentEdgeAt(i)->getMemoryPtr()->getDescPtr());
+    }
+    std::vector<MemoryDescPtr> dstMemoryDescs;
+    for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+        dstMemoryDescs.push_back(getChildEdgeAt(i)->getMemoryPtr()->getDescPtr());
+    }
+    dnnl::primitive_attr attr;
+    //setPostOps(attr, dst_dims, true);
+    auto selectedPD = getSelectedPrimitiveDescriptor();
+
+    execPtr = selectedPD->getExecutorFactoryAs<ROIAlignExecutorFactory>()->makeExecutor(roialignedAttrs, srcMemoryDescs, dstMemoryDescs, attr);
+    selectedPD->setImplementationType(execPtr->getImplType());
+#endif
 }
 
 namespace {
@@ -852,6 +907,7 @@ struct ROIAlign::ROIAlignExecute {
     }
 };
 void ROIAlign::execute(dnnl::stream strm) {
+#if defined(OPENVINO_ARCH_X86_64)
     auto inputPrec = getParentEdgeAt(0)->getMemory().GetDataType();
     auto outputPrec = getChildEdgeAt(0)->getMemory().GetDataType();
     if (!((inputPrec == dnnl_bf16 && outputPrec == dnnl_bf16) ||
@@ -865,6 +921,22 @@ void ROIAlign::execute(dnnl::stream strm) {
     OV_SWITCH(intel_cpu, ROIAlignExecute, ctx, std::tie(inputPrec, outputPrec),
               OV_CASE2(dnnl_f32, dnnl_f32, float, float),
               OV_CASE2(dnnl_bf16, dnnl_bf16, bfloat16_t, bfloat16_t))
+#else
+    if (!execPtr) {
+        IE_THROW() << "Can't execute ROIAlign node. Executor is not created";
+    }
+
+    std::vector<MemoryCPtr> srcMemory;
+    for (int i = 0; i < getOriginalInputsNumber(); i++) {
+        srcMemory.push_back(getParentEdgeAt(i)->getMemoryPtr());
+    }
+    std::vector<MemoryPtr> dstMemory;
+    for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+        dstMemory.push_back(getChildEdgeAt(i)->getMemoryPtr());
+    }
+
+    execPtr->exec(srcMemory, dstMemory, postOpsArgs);
+#endif
 }
 
 template <typename inputType, typename outputType>
@@ -890,7 +962,7 @@ void ROIAlign::executeSpecified() {
     const int H = static_cast<int>(inputDimVector[2]);
     const int W = static_cast<int>(inputDimVector[3]);
 
-    const int binCount = pooledH * pooledW;
+    const int binCount = roialignedAttrs.pooledH * roialignedAttrs.pooledW;
 
     const auto &srcStrides = srcBlockDesc->getStrides();
     const auto &dstStrides = dstBlockDesc->getStrides();
@@ -921,7 +993,7 @@ void ROIAlign::executeSpecified() {
     float offset_src = 0;
     float offset_dst = 0;
 
-    switch (alignedMode) {
+    switch (roialignedAttrs.alignedMode) {
     case ROIAlignedMode::ra_half_pixel_for_nn: {
         aligned = true;
         offset_dst = -0.5;
@@ -949,10 +1021,10 @@ void ROIAlign::executeSpecified() {
             IE_THROW() << "Demanded batch (id = " << roiBatchInd << ") doesn't exist";
         }
 
-        float x1 = (srcRoiPtr[0] + offset_src) * spatialScale + offset_dst;
-        float y1 = (srcRoiPtr[1] + offset_src) * spatialScale + offset_dst;
-        float x2 = (srcRoiPtr[2] + offset_src) * spatialScale + offset_dst;
-        float y2 = (srcRoiPtr[3] + offset_src) * spatialScale + offset_dst;
+        float x1 = (srcRoiPtr[0] + offset_src) * roialignedAttrs.spatialScale + offset_dst;
+        float y1 = (srcRoiPtr[1] + offset_src) * roialignedAttrs.spatialScale + offset_dst;
+        float x2 = (srcRoiPtr[2] + offset_src) * roialignedAttrs.spatialScale + offset_dst;
+        float y2 = (srcRoiPtr[3] + offset_src) * roialignedAttrs.spatialScale + offset_dst;
 
         float roiHeight = y2 - y1;
         float roiWidth = x2 - x1;
@@ -960,11 +1032,11 @@ void ROIAlign::executeSpecified() {
             roiHeight = std::max(roiHeight, 1.0f);
             roiWidth = std::max(roiWidth, 1.0f);
         }
-        float binHeight = roiHeight / pooledH;
-        float binWidth = roiWidth / pooledW;
+        float binHeight = roiHeight / roialignedAttrs.pooledH;
+        float binWidth = roiWidth / roialignedAttrs.pooledW;
 
-        auto samplingRatioX = samplingRatio == 0 ? static_cast<int>(ceil(binWidth)) : samplingRatio;
-        auto samplingRatioY = samplingRatio == 0 ? static_cast<int>(ceil(binHeight)) : samplingRatio;
+        auto samplingRatioX = roialignedAttrs.samplingRatio == 0 ? static_cast<int>(ceil(binWidth)) : roialignedAttrs.samplingRatio;
+        auto samplingRatioY = roialignedAttrs.samplingRatio == 0 ? static_cast<int>(ceil(binHeight)) : roialignedAttrs.samplingRatio;
 
         uint64_t numSamplesInBin = static_cast<uint64_t>(samplingRatioX) * samplingRatioY;
         numSamples[n] = numSamplesInBin;
@@ -988,8 +1060,8 @@ void ROIAlign::executeSpecified() {
         // |__ __|__ __|__ __|
         // |     |     |     |
         // |__ __|__ __|__ __|
-        for (int yBinInd = 0; yBinInd < pooledH; ++yBinInd) {
-            for (int xBinInd = 0; xBinInd < pooledW; ++xBinInd) {
+        for (int yBinInd = 0; yBinInd < roialignedAttrs.pooledH; ++yBinInd) {
+            for (int xBinInd = 0; xBinInd < roialignedAttrs.pooledW; ++xBinInd) {
                 // run into bin
                 for (int ySampleInd = 0; ySampleInd < samplingRatioY; ySampleInd++) {
                     float sampleY = y1 + yBinInd * binHeight + sampleDistanceY * (0.5f + ySampleInd);
@@ -1078,10 +1150,10 @@ void ROIAlign::executeSpecified() {
             int bufSize = rnd_up(C, 16);
             size_t threadsNum = parallel_get_num_threads();
             workingBuf.resize(bufSize * threadsNum, 0.f);
-            parallel_for3d(realRois, pooledH, pooledW, [&](int n, int yBinInd, int xBinInd) {
+            parallel_for3d(realRois, roialignedAttrs.pooledH, roialignedAttrs.pooledW, [&](int n, int yBinInd, int xBinInd) {
                 int numSamplesROI = numSamples[n];
                 // each sample have 4 values for srcAddressList and weight
-                size_t binOffset = numSamplesROI * BLIParamsNum * pooledW * yBinInd + numSamplesROI * BLIParamsNum * xBinInd;
+                size_t binOffset = numSamplesROI * BLIParamsNum * roialignedAttrs.pooledW * yBinInd + numSamplesROI * BLIParamsNum * xBinInd;
 
                 auto arg = jit_roi_align_call_args();
                 arg.src = static_cast<const void*>(&srcAddressListTbl[n][binOffset]);
@@ -1093,17 +1165,17 @@ void ROIAlign::executeSpecified() {
                 float *threadBuf = static_cast<float*>(&workingBuf[parallel_get_thread_num() * bufSize]);
                 memset(threadBuf, 0, bufSize * sizeof(float));
                 arg.buffer = threadBuf;
-                size_t dstOffset = n * batchOutputStride + yBinInd * pooledW * lastBlockDim + xBinInd * lastBlockDim;
+                size_t dstOffset = n * batchOutputStride + yBinInd * roialignedAttrs.pooledW * lastBlockDim + xBinInd * lastBlockDim;
                 arg.dst = static_cast<void*>(&dst[dstOffset]);
                 arg.src_stride = lastBlockDim * W * H; // only valid for blk, nspc generate inside
                 (*roi_align_kernel)(&arg);
             });
         } else {
             // one lane for one sample generation, then pooling all samples.
-            parallel_for4d(realRois, C, pooledH, pooledW, [&](int n, int cIdx, int yBinInd, int xBinInd) {
+            parallel_for4d(realRois, C, roialignedAttrs.pooledH, roialignedAttrs.pooledW, [&](int n, int cIdx, int yBinInd, int xBinInd) {
                 size_t batchSrcOffset = srcRoiIdx[n] * batchInputStride;
                 size_t channelSrcOffset = batchSrcOffset + cIdx * H * W;
-                size_t binOffset = yBinInd * pooledW + xBinInd;
+                size_t binOffset = yBinInd * roialignedAttrs.pooledW + xBinInd;
                 size_t binDstOffset = n * batchOutputStride + cIdx * binCount + binOffset;
                 int numSamplesROI = numSamples[n];
                 size_t paramOffset = binOffset * BLIParamsNum * numSamplesROI;
@@ -1122,11 +1194,11 @@ void ROIAlign::executeSpecified() {
         }
     } else {
         // ref with planar
-        parallel_for4d(realRois, C, pooledH, pooledW, [&](int n, int cIdx, int yBinInd, int xBinInd) {
+        parallel_for4d(realRois, C, roialignedAttrs.pooledH, roialignedAttrs.pooledW, [&](int n, int cIdx, int yBinInd, int xBinInd) {
             int numSamplesROI = numSamples[n];
             size_t batchSrcOffset = srcRoiIdx[n] * batchInputStride;
             size_t channelSrcOffset = batchSrcOffset + cIdx * H * W;
-            size_t binOffset = yBinInd * pooledW + xBinInd;
+            size_t binOffset = yBinInd * roialignedAttrs.pooledW + xBinInd;
             size_t binDstOffset = n * batchOutputStride + cIdx * binCount + binOffset;
             int paramOffset = binOffset * BLIParamsNum * numSamplesROI;
             float numSamplesInBinInvert = 1.f / numSamplesROI;

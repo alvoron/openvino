@@ -18,25 +18,26 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
                           const dnnl::primitive_attr &attr) {
     std::cout << "AclDeconvExecutor::init" << std::endl;
     this->deconvAttrs = deconvAttrs;
-    //deconvAttrs.withBias = (srcDescs.size() == 3);
+    this->deconvAttrs.withBiases = (srcDescs.size() == 3);
+
     auto srcDims  = srcDescs[0]->getShape().getStaticDims();
     auto weiDims  = srcDescs[1]->getShape().getStaticDims();
+    //swap input and output channels dimensions to be align with ACL
+    std::swap(weiDims[0], weiDims[1]);
     auto dstDims  = dstDescs[0]->getShape().getStaticDims();
 
     VectorDims biasDims;
     TensorInfo biasTensorInfo;
-    if (deconvAttrs.withBiases) {
-        std::cout << "BIAS mode" << std::endl;
+    if (this->deconvAttrs.withBiases) {
+        std::cout << "with BIAS mode" << std::endl;
         biasDims = srcDescs[2]->getShape().getStaticDims();
+        //bias presicion is I32 but ACL requests bias precision as input ones
         biasTensorInfo = TensorInfo(shapeCast(biasDims), 1,
-        precisionToAclDataType(srcDescs[2]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[2]));
+        precisionToAclDataType(srcDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[2]));
     } else {
         std::cout << "non-BIAS mode" << std::endl;
     }
 
-    //it's a wierd WA to pass ACL check NEDeconvolutionLayer.cpp:127: Output's depth is invalid
-    dstDims[1] *= dstDims[0];
-    dstDims[0] = 1;
     TensorInfo srcTensorInfo = TensorInfo(shapeCast(srcDims), 1,
     precisionToAclDataType(srcDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[0]));
     TensorInfo weiTensorInfo = TensorInfo(shapeCast(weiDims), 1,
@@ -63,7 +64,7 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
 
     arm_compute::Status status = arm_compute::NEDeconvolutionLayer::validate(&srcTensorInfo,
                                                                            &weiTensorInfo,
-                                                                           deconvAttrs.withBiases ? &biasTensorInfo : nullptr,
+                                                                           this->deconvAttrs.withBiases ? &biasTensorInfo : nullptr,
                                                                            &dstTensorInfo,
                                                                            deconv_info);
     if (!status) {
@@ -75,11 +76,11 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
 
     srcTensor.allocator()->init(srcTensorInfo);
     weiTensor.allocator()->init(weiTensorInfo);
-    if (deconvAttrs.withBiases) biasTensor.allocator()->init(biasTensorInfo);
+    if (this->deconvAttrs.withBiases) biasTensor.allocator()->init(biasTensorInfo);
     dstTensor.allocator()->init(dstTensorInfo);
 
     deconv = std::make_unique<arm_compute::NEDeconvolutionLayer>();
-    deconv->configure(&srcTensor, &weiTensor, deconvAttrs.withBiases ? &biasTensor : nullptr, &dstTensor, deconv_info);
+    deconv->configure(&srcTensor, &weiTensor, this->deconvAttrs.withBiases ? &biasTensor : nullptr, &dstTensor, deconv_info);
 
     return true;
 }
@@ -88,14 +89,14 @@ void AclDeconvExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vect
     std::cout << "AclDeconvExecutor::exec" << std::endl;
     srcTensor.allocator()->import_memory(src[0]->GetPtr());
     weiTensor.allocator()->import_memory(src[1]->GetPtr());
-    if (deconvAttrs.withBiases) biasTensor.allocator()->import_memory(src[2]->GetPtr());
+    if (this->deconvAttrs.withBiases) biasTensor.allocator()->import_memory(src[2]->GetPtr());
     dstTensor.allocator()->import_memory(dst[0]->GetPtr());
 
     deconv->run();
 
     srcTensor.allocator()->free();
     weiTensor.allocator()->free();
-    if (deconvAttrs.withBiases) biasTensor.allocator()->free();
+    if (this->deconvAttrs.withBiases) biasTensor.allocator()->free();
     dstTensor.allocator()->free();
 }
 

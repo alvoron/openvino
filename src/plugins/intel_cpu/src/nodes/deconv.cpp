@@ -394,12 +394,11 @@ void Deconvolution::getSupportedDescriptors() {
     if (!descs.empty())
         return;
     isInt8 = canBeExecutedInInt8();
-    withBiases = externOutShape ? getOriginalInputsNumber() == 4 : getOriginalInputsNumber() == 3;
-    deconvAttrs.withBiases = withBiases;
+    deconvAttrs.withBiases = externOutShape ? getOriginalInputsNumber() == 4 : getOriginalInputsNumber() == 3;
     //ONEDNN deconvolution_fwd_t primitive can support bias fusing.
     //ONEDNN convolution_data_bwd_t can't support bias fusing.
     //Current only int8 precision choose deconvolution_fwd_t.
-    if (withBiases && !isInt8) {
+    if (deconvAttrs.withBiases && !isInt8) {
         IE_THROW() << errorPrefix << " supports bias fusing only for int8 execution precision";
     }
 
@@ -424,7 +423,7 @@ void Deconvolution::getSupportedDescriptors() {
     if (!fusedWith.empty()) {
         outputDataType = DnnlExtensionUtils::IEPrecisionToDataType(fusedWith[fusedWith.size() - 1]->getOriginalOutputPrecisionAtPort(0));
     }
-    if (getParentEdges().size() != (withBiases ? (biasPort + 1) : biasPort)) {
+    if (getParentEdges().size() != (deconvAttrs.withBiases ? (biasPort + 1) : biasPort)) {
         IE_THROW() << errorPrefix << " has incorrect number of input edges";
     }
     if (getChildEdges().empty()) {
@@ -749,7 +748,7 @@ void Deconvolution::createPrimitive() {
             auto outDummyDsc = getBaseMemDescAtOutputPort(0)->cloneWithNewDims(outDims);
             inDesc = MemoryDescUtils::convertToDnnlMemoryDesc(inDummyDsc);
             outDesc = MemoryDescUtils::convertToDnnlMemoryDesc(outDummyDsc);
-            if (withBiases) {
+            if (deconvAttrs.withBiases) {
                 const VectorDims biasVecDims = getInputShapeAtPort(biasPort).getStaticDims();
                 auto biasDummyDsc = getBaseMemDescAtInputPort(biasPort)->cloneWithNewDims(biasVecDims);
                 biasDesc = MemoryDescUtils::convertToDnnlMemoryDesc(biasDummyDsc);
@@ -760,7 +759,7 @@ void Deconvolution::createPrimitive() {
 
             inDesc = getParentEdgesAtPort(0).front()->getMemory().GetDescWithType<DnnlMemoryDesc>();
             outDesc = getChildEdgesAtPort(0).front()->getMemory().GetDescWithType<DnnlMemoryDesc>();
-            if (withBiases)
+            if (deconvAttrs.withBiases)
                 biasDesc = getParentEdgesAtPort(biasPort).front()->getMemory().GetDescWithType<DnnlMemoryDesc>();
         }
 
@@ -768,7 +767,7 @@ void Deconvolution::createPrimitive() {
         if (biasDesc != nullptr)
             // WA to align IR bias representation (3 to 5 rank tensors) to oneDNN representation (1 rank tensor)
             dnnlBiasDesc = biasDesc->getDnnlDesc().reshape({DnnlExtensionUtils::convertToDnnlDim(biasesDims[0])});
-        auto desc = createInt8MkldnnDeconvDesc(inDesc->getDnnlDesc(), wgh_candidate, dnnlBiasDesc, outDesc->getDnnlDesc(), withBiases,
+        auto desc = createInt8MkldnnDeconvDesc(inDesc->getDnnlDesc(), wgh_candidate, dnnlBiasDesc, outDesc->getDnnlDesc(), deconvAttrs.withBiases,
                                                stride, dilation, paddingL, paddingR);
         AttrPtr pAttr = makePrimitiveAttr(outDims);
         auto itpd = desc->createPrimitiveDescriptorIterator(getEngine(), *pAttr);
@@ -835,7 +834,7 @@ void Deconvolution::prepareParams() {
 
     if (isInt8) {
         wghDesc = internalBlobMemory.front()->GetDescWithType<DnnlMemoryDesc>();
-        if (withBiases) {
+        if (deconvAttrs.withBiases) {
             biasMemPtr = getParentEdgesAtPort(biasPort)[0]->getMemoryPtr();
             if (!biasMemPtr || !biasMemPtr->isAllocated())
                 IE_THROW() << "Bias memory  memory didn't allocate.";
@@ -957,7 +956,7 @@ void Deconvolution::prepareParams() {
             primArgs[DNNL_ARG_SRC] = srcMemPtr->GetPrimitive();
             primArgs[DNNL_ARG_WEIGHTS] = internalBlobMemory.front()->GetPrimitive();
             primArgs[DNNL_ARG_DST]=  dstMemPtr->GetPrimitive();
-            if (withBiases)
+            if (deconvAttrs.withBiases)
                 primArgs[DNNL_ARG_BIAS] = biasMemPtr->GetPrimitive();
         } else {
             primArgs[DNNL_ARG_DIFF_DST] = srcMemPtr->GetPrimitive();
@@ -1052,13 +1051,13 @@ void Deconvolution::createDescriptor(const std::vector<MemoryDescPtr> &inputDesc
         return;
 
     if (isInt8) {
-        if (withBiases) {
+        if (deconvAttrs.withBiases) {
             memory::data_type bdt = memory::data_type::f32;
             bias_candidate = dnnl::memory::desc(DnnlExtensionUtils::convertToDnnlDims(biasesDims), bdt, memory::format_tag::any);
         }
         dnnl::memory::desc wgh_candidate(DnnlExtensionUtils::convertToDnnlDims(int8WeightDims), memory::data_type::s8, memory::format_tag::any);
         descs.emplace_back(createDescriptorInternalInt8(in_candidate, wgh_candidate, bias_candidate,
-                                                            out_candidate, withBiases, stride, dilation, paddingL, paddingR));
+                                                            out_candidate, deconvAttrs.withBiases, stride, dilation, paddingL, paddingR));
     } else {
         dnnl::memory::desc wgh_candidate(DnnlExtensionUtils::convertToDnnlDims(getWeightDims()),
                                            dnnlInDesc.getDataType(), memory::format_tag::any);
@@ -1076,7 +1075,7 @@ void Deconvolution::createDescriptor(const std::vector<MemoryDescPtr> &inputDesc
 }
 
 std::shared_ptr<MemoryDesc> Deconvolution::getSrcMemDesc(dnnl::primitive_desc_iterator &primitive_desc_it, size_t idx) {
-    if (idx == 2 && !withBiases) {
+    if (idx == 2 && !deconvAttrs.withBiases) {
         return std::make_shared<CpuBlockedMemoryDesc>(InferenceEngine::Precision::I32, Shape(getInputShapeAtPort(2).getStaticDims()));
     } else if (idx > 0 && isInt8) {
         // we need to store 'weight' input as edge,

@@ -13,7 +13,7 @@ namespace intel_cpu {
 
 // Defines way to add epsilon: inside sqrt or outside.
 struct DeconvAttrs {
-    bool withBiases;
+    bool withBiases = false;
     std::vector<ptrdiff_t> stride;
     std::vector<ptrdiff_t> dilation;
     std::vector<ptrdiff_t> paddingL;

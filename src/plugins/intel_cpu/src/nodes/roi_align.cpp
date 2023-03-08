@@ -29,7 +29,6 @@ namespace ov {
 namespace intel_cpu {
 namespace node {
 
-using ngPoolingMode = ngraph::opset9::ROIAlign::PoolingMode;
 using ngAlignedMode = ngraph::opset9::ROIAlign::AlignedMode;
 
 #define GET_OFF(field) offsetof(jit_roi_align_call_args, field)
@@ -685,10 +684,10 @@ ROIAlign::ROIAlign(const std::shared_ptr<ngraph::Node>& op, const GraphContext::
         roialignedAttrs.pooledW = roiAlign->get_pooled_w();
         roialignedAttrs.spatialScale = roiAlign->get_spatial_scale();
         roialignedAttrs.samplingRatio = roiAlign->get_sampling_ratio();
-        const ngPoolingMode m = roiAlign->get_mode();
-        if (m == ngPoolingMode::MAX) {
+        roialignedAttrs.m = roiAlign->get_mode();
+        if (roialignedAttrs.m == ngPoolingMode::MAX) {
             algorithm = Algorithm::ROIAlignMax;
-        } else if (m == ngPoolingMode::AVG) {
+        } else if (roialignedAttrs.m == ngPoolingMode::AVG) {
             algorithm = Algorithm::ROIAlignAvg;
         }
         const ngAlignedMode mAligned = roiAlign->get_aligned_mode();
@@ -699,13 +698,17 @@ ROIAlign::ROIAlign(const std::shared_ptr<ngraph::Node>& op, const GraphContext::
         } else if (mAligned == ngAlignedMode::HALF_PIXEL) {
             roialignedAttrs.alignedMode = ROIAlignedMode::ra_half_pixel;
         }
+        if (roialignedAttrs.m == ngPoolingMode::AVG &&
+            (roialignedAttrs.alignedMode == ROIAlignedMode::ra_asymmetric || roialignedAttrs.alignedMode == ROIAlignedMode::ra_half_pixel)) {
+            useACL = true;
+        }
     } else {
         IE_THROW(NotImplemented) << errorMessage;
     }
 }
 
 void ROIAlign::getSupportedDescriptors() {
-    if (!descs.empty())
+    if (!descs.empty() || useACL)
         return;
 
     if (getParentEdges().size() != 3)
@@ -834,23 +837,22 @@ void ROIAlign::initSupportedPrimitiveDescriptors() {
     auto prc = outPortConfigs.prc == InferenceEngine::Precision::UNSPECIFIED ? getOriginalOutputPrecisionAtPort(0) : outPortConfigs.prc;
     if (!fill_port(outPortConfigs, dims, prc, config.outConfs))
         return;
+    if (useACL) {
+        std::vector<MemoryDescPtr> srcMemoryDescs;
+        for (int i = 0; i < config.inConfs.size(); i++) {
+            srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
+        }
+        std::vector<MemoryDescPtr> dstMemoryDescs;
+        for (int i = 0; i < config.outConfs.size(); i++) {
+            dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
+        }
 
-#if defined(OPENVINO_ARCH_X86_64)
-    supportedPrimitiveDescriptors.push_back({config, impl_type});
-#else
-    std::vector<MemoryDescPtr> srcMemoryDescs;
-    for (int i = 0; i < config.inConfs.size(); i++) {
-        srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
+        auto factory = std::make_shared<ROIAlignExecutorFactory>(roialignedAttrs, srcMemoryDescs, dstMemoryDescs,
+                                                                std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
+        supportedPrimitiveDescriptors.push_back({config, impl_type, factory});
+    } else {
+        supportedPrimitiveDescriptors.push_back({config, impl_type});
     }
-    std::vector<MemoryDescPtr> dstMemoryDescs;
-    for (int i = 0; i < config.outConfs.size(); i++) {
-        dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
-    }
-
-    auto factory = std::make_shared<ROIAlignExecutorFactory>(roialignedAttrs, srcMemoryDescs, dstMemoryDescs,
-                                                             std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
-    supportedPrimitiveDescriptors.push_back({config, impl_type, factory});
-#endif
     }
 }
 
@@ -873,22 +875,23 @@ void ROIAlign::createPrimitive() {
         }
         createJitKernel(srcMemPtr->getDesc().getPrecision(), selectedLayout);
     }
-#else
-    std::vector<MemoryDescPtr> srcMemoryDescs;
-    for (int i = 0; i < getOriginalInputsNumber(); i++) {
-        srcMemoryDescs.push_back(getParentEdgeAt(i)->getMemoryPtr()->getDescPtr());
-    }
-    std::vector<MemoryDescPtr> dstMemoryDescs;
-    for (int i = 0; i < getOriginalOutputsNumber(); i++) {
-        dstMemoryDescs.push_back(getChildEdgeAt(i)->getMemoryPtr()->getDescPtr());
-    }
-    dnnl::primitive_attr attr;
-    //setPostOps(attr, dst_dims, true);
-    auto selectedPD = getSelectedPrimitiveDescriptor();
-
-    execPtr = selectedPD->getExecutorFactoryAs<ROIAlignExecutorFactory>()->makeExecutor(roialignedAttrs, srcMemoryDescs, dstMemoryDescs, attr);
-    selectedPD->setImplementationType(execPtr->getImplType());
 #endif
+    if (useACL) {
+        std::vector<MemoryDescPtr> srcMemoryDescs;
+        for (int i = 0; i < getOriginalInputsNumber(); i++) {
+            srcMemoryDescs.push_back(getParentEdgeAt(i)->getMemoryPtr()->getDescPtr());
+        }
+        std::vector<MemoryDescPtr> dstMemoryDescs;
+        for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+            dstMemoryDescs.push_back(getChildEdgeAt(i)->getMemoryPtr()->getDescPtr());
+        }
+        dnnl::primitive_attr attr;
+        //setPostOps(attr, dst_dims, true);
+        auto selectedPD = getSelectedPrimitiveDescriptor();
+
+        execPtr = selectedPD->getExecutorFactoryAs<ROIAlignExecutorFactory>()->makeExecutor(roialignedAttrs, srcMemoryDescs, dstMemoryDescs, attr);
+        selectedPD->setImplementationType(execPtr->getImplType());
+    }
 }
 
 namespace {
@@ -907,7 +910,7 @@ struct ROIAlign::ROIAlignExecute {
     }
 };
 void ROIAlign::execute(dnnl::stream strm) {
-#if defined(OPENVINO_ARCH_X86_64)
+    if (!useACL) {
     auto inputPrec = getParentEdgeAt(0)->getMemory().GetDataType();
     auto outputPrec = getChildEdgeAt(0)->getMemory().GetDataType();
     if (!((inputPrec == dnnl_bf16 && outputPrec == dnnl_bf16) ||
@@ -921,22 +924,22 @@ void ROIAlign::execute(dnnl::stream strm) {
     OV_SWITCH(intel_cpu, ROIAlignExecute, ctx, std::tie(inputPrec, outputPrec),
               OV_CASE2(dnnl_f32, dnnl_f32, float, float),
               OV_CASE2(dnnl_bf16, dnnl_bf16, bfloat16_t, bfloat16_t))
-#else
-    if (!execPtr) {
-        IE_THROW() << "Can't execute ROIAlign node. Executor is not created";
-    }
+    } else {
+        if (!execPtr) {
+            IE_THROW() << "Can't execute ROIAlign node. Executor is not created";
+        }
 
-    std::vector<MemoryCPtr> srcMemory;
-    for (int i = 0; i < getOriginalInputsNumber(); i++) {
-        srcMemory.push_back(getParentEdgeAt(i)->getMemoryPtr());
-    }
-    std::vector<MemoryPtr> dstMemory;
-    for (int i = 0; i < getOriginalOutputsNumber(); i++) {
-        dstMemory.push_back(getChildEdgeAt(i)->getMemoryPtr());
-    }
+        std::vector<MemoryCPtr> srcMemory;
+        for (int i = 0; i < getOriginalInputsNumber(); i++) {
+            srcMemory.push_back(getParentEdgeAt(i)->getMemoryPtr());
+        }
+        std::vector<MemoryPtr> dstMemory;
+        for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+            dstMemory.push_back(getChildEdgeAt(i)->getMemoryPtr());
+        }
 
-    execPtr->exec(srcMemory, dstMemory, postOpsArgs);
-#endif
+        execPtr->exec(srcMemory, dstMemory, postOpsArgs);
+    }
 }
 
 template <typename inputType, typename outputType>

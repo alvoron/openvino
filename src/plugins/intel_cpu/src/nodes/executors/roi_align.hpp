@@ -8,9 +8,12 @@
 #include "onednn/iml_type_mapper.h"
 #include "dnnl_scratch_pad.h"
 #include "executor.hpp"
+#include <ngraph/opsets/opset9.hpp>
 
 namespace ov {
 namespace intel_cpu {
+
+using ngPoolingMode = ngraph::opset9::ROIAlign::PoolingMode;
 
 enum ROIAlignedMode {
     ra_asymmetric,
@@ -24,6 +27,7 @@ struct ROIAlignAttrs {
     int samplingRatio = 2;
     float spatialScale = 1.0f;
     ROIAlignedMode alignedMode;
+    ngPoolingMode m;
 };
 
 class ROIAlignExecutor {

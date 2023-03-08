@@ -16,12 +16,12 @@ bool AclROIAlignExecutor::init(const ROIAlignAttrs& roialignAttrs,
                           const std::vector<MemoryDescPtr>& srcDescs,
                           const std::vector<MemoryDescPtr>& dstDescs,
                           const dnnl::primitive_attr &attr) {
-    std::cout << "AclROIAlignExecutor::init" << std::endl;
-
-    auto srcDims = srcDescs[0]->getShape().getStaticDims();
-    auto roiDims = srcDescs[1]->getShape().getStaticDims();
-    auto dstDims = dstDescs[0]->getShape().getStaticDims();
-    std::cout << "roiDims: "; for (size_t i : roiDims) std::cout << i << " "; std::cout << std::endl;
+    auto dstDims = dstDescs[0]->getShape().getDims();
+    auto srcDims = srcDescs[0]->getShape().getDims();
+    auto roiDims = srcDescs[1]->getShape().getDims();
+    numRois = roiDims[0];
+    //roi tensor shape is changed because ACL expects [N, 5] tensor while OV uses [N, 4] tensor
+    roiDims[1] = 5;
 
     TensorInfo srcTensorInfo = TensorInfo(shapeCast(srcDims), 1,
     precisionToAclDataType(srcDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[0]));
@@ -34,7 +34,7 @@ bool AclROIAlignExecutor::init(const ROIAlignAttrs& roialignAttrs,
 
     Status s = arm_compute::NEROIAlignLayer::validate(&srcTensorInfo, &roiTensorInfo, &dstTensorInfo, poolInfo);
     if (!s) {
-        std::cout << "AclROIAlignExecutor::init failed: " << s.error_description() << std::endl;
+        DEBUG_LOG("NEROIAlignLayer validation failed: ", s.error_description());
         return false;
     }
 
@@ -49,9 +49,21 @@ bool AclROIAlignExecutor::init(const ROIAlignAttrs& roialignAttrs,
 }
 
 void AclROIAlignExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, std::unordered_map<int, MemoryPtr> postOpsArgs) {
-    std::cout << "AclROIAlignExecutor::exec" << std::endl;
+    //roi tensor shape is changed because ACL expects [N, 5] tensor while OV uses [N, 4] tensor
+    //the missing 5th dimension is batch id
+    //roiBuffer presents [N, 5] roi vector that passed to ACL
+    float* elem = reinterpret_cast<float*>(src[1]->GetPtr());
+    int* batchId = reinterpret_cast<int*>(src[2]->GetPtr());
+    for (int i = 0; i < numRois; i++) {
+        roiBuffer.push_back(*(batchId + i));
+        roiBuffer.push_back(*(elem + i * 4));
+        roiBuffer.push_back(*(elem + i * 4 + 1));
+        roiBuffer.push_back(*(elem + i * 4 + 2));
+        roiBuffer.push_back(*(elem + i * 4 + 3));
+    }
+
     srcTensor.allocator()->import_memory(src[0]->GetPtr());
-    roiTensor.allocator()->import_memory(src[1]->GetPtr());
+    roiTensor.allocator()->import_memory(roiBuffer.data());
     dstTensor.allocator()->import_memory(dst[0]->GetPtr());
 
     roialign->run();

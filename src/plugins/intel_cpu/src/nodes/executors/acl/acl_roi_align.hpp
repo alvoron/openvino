@@ -6,6 +6,7 @@
 
 // TODO: remove relative path
 #include "../roi_align.hpp"
+#include "utils/debug_capabilities.h"
 #include "arm_compute/runtime/NEON/NEFunctions.h"
 
 namespace ov {
@@ -29,6 +30,8 @@ public:
 
 private:
     ROIAlignAttrs roialignAttrs;
+    std::vector<float> roiBuffer;
+    int numRois;
     impl_desc_type implType = impl_desc_type::acl;
 
     arm_compute::Tensor srcTensor;
@@ -42,12 +45,16 @@ public:
     bool isSupported(const ROIAlignAttrs& roialignAttrs,
                      const std::vector<MemoryDescPtr>& srcDescs,
                      const std::vector<MemoryDescPtr>& dstDescs) const override {
-        /*if (srcDescs[0]->getPrecision() != dstDescs[0]->getPrecision() ||
+        if (srcDescs[0]->getPrecision() != dstDescs[0]->getPrecision() ||
+            srcDescs[0]->getPrecision() != srcDescs[1]->getPrecision() ||
            (srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 &&
-            dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP16 &&
-            dstDescs[0]->getPrecision() != InferenceEngine::Precision::I32))
-            return false;*/
-
+            srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP16))
+            return false;
+        //ACL supports only AVG and asymmetric/half pixel aligned mode
+        if (roialignAttrs.m != ngPoolingMode::AVG ||
+            (roialignAttrs.alignedMode != ROIAlignedMode::ra_asymmetric &&
+            roialignAttrs.alignedMode != ROIAlignedMode::ra_half_pixel))
+            return false;
         return true;
     }
 

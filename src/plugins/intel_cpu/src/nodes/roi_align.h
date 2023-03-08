@@ -79,6 +79,7 @@ public:
 private:
     ROIAlignAttrs roialignedAttrs;
     std::shared_ptr<ROIAlignExecutor> execPtr = nullptr;
+    bool useACL = false;
 
     template <typename inputType, typename outputType>
     void executeSpecified();

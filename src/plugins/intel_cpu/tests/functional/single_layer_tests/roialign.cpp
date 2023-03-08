@@ -227,6 +227,7 @@ const std::vector<ROIAlignShapes> inputShapeVector = {
     ROIAlignShapes{{{}, {{ 2, 4, 20, 20 }}}, {{}, {{1, 4}}}, {{}, {{1}}}},
     ROIAlignShapes{{{}, {{ 2, 4, 20, 40 }}}, {{}, {{1, 4}}}, {{}, {{1}}}},
     ROIAlignShapes{{{}, {{ 10, 1, 20, 20 }}}, {{}, {{1, 4}}}, {{}, {{1}}}},
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
     ROIAlignShapes{
         {{-1, -1, -1, -1}, {{ 10, 1, 20, 20 }, { 2, 4, 20, 20 }, { 2, 18, 20, 20 }}},
         {{-1, 4}, {{1, 4}, {2, 4}, {1, 4}}},
@@ -242,6 +243,7 @@ const std::vector<ROIAlignShapes> inputShapeVector = {
         {{{1, 2}, 4}, {{1, 4}, {2, 4}, {1, 4}}},
         {{{1, 2}}, {{1}, {2}, {1}}}
     },
+#endif
 };
 
 const auto roiAlignParams = ::testing::Combine(

@@ -825,34 +825,34 @@ void ROIAlign::initSupportedPrimitiveDescriptors() {
         std::vector<PortConfigurator> inPortConfigs = {{fmts.first, inputPrec0},
                                                         {LayoutType::ncsp, Precision::FP32},
                                                         {LayoutType::ncsp, Precision::I32}};
-    NodeConfig config;
-    for (size_t i = 0; i < inPortConfigs.size(); i++) {
-        auto shape = inPortConfigs[i].shape.getRank() == 0 ? getInputShapeAtPort(i) : inPortConfigs[i].shape;
-        auto prc = inPortConfigs[i].prc == InferenceEngine::Precision::UNSPECIFIED ? getOriginalInputPrecisionAtPort(i) : inPortConfigs[i].prc;
-        if (!fill_port(inPortConfigs[i], shape, prc, config.inConfs))
+        NodeConfig config;
+        for (size_t i = 0; i < inPortConfigs.size(); i++) {
+            auto shape = inPortConfigs[i].shape.getRank() == 0 ? getInputShapeAtPort(i) : inPortConfigs[i].shape;
+            auto prc = inPortConfigs[i].prc == InferenceEngine::Precision::UNSPECIFIED ? getOriginalInputPrecisionAtPort(i) : inPortConfigs[i].prc;
+            if (!fill_port(inPortConfigs[i], shape, prc, config.inConfs))
+                return;
+        }
+        PortConfigurator outPortConfigs = {fmts.second, outputPrec};
+        auto dims = outPortConfigs.shape.getRank() == 0 ? getOutputShapeAtPort(0) : outPortConfigs.shape;
+        auto prc = outPortConfigs.prc == InferenceEngine::Precision::UNSPECIFIED ? getOriginalOutputPrecisionAtPort(0) : outPortConfigs.prc;
+        if (!fill_port(outPortConfigs, dims, prc, config.outConfs))
             return;
-    }
-    PortConfigurator outPortConfigs = {fmts.second, outputPrec};
-    auto dims = outPortConfigs.shape.getRank() == 0 ? getOutputShapeAtPort(0) : outPortConfigs.shape;
-    auto prc = outPortConfigs.prc == InferenceEngine::Precision::UNSPECIFIED ? getOriginalOutputPrecisionAtPort(0) : outPortConfigs.prc;
-    if (!fill_port(outPortConfigs, dims, prc, config.outConfs))
-        return;
-    if (useACL) {
-        std::vector<MemoryDescPtr> srcMemoryDescs;
-        for (int i = 0; i < config.inConfs.size(); i++) {
-            srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
-        }
-        std::vector<MemoryDescPtr> dstMemoryDescs;
-        for (int i = 0; i < config.outConfs.size(); i++) {
-            dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
-        }
+        if (useACL) {
+            std::vector<MemoryDescPtr> srcMemoryDescs;
+            for (int i = 0; i < config.inConfs.size(); i++) {
+                srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
+            }
+            std::vector<MemoryDescPtr> dstMemoryDescs;
+            for (int i = 0; i < config.outConfs.size(); i++) {
+                dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
+            }
 
-        auto factory = std::make_shared<ROIAlignExecutorFactory>(roialignedAttrs, srcMemoryDescs, dstMemoryDescs,
-                                                                std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
-        supportedPrimitiveDescriptors.push_back({config, impl_type, factory});
-    } else {
-        supportedPrimitiveDescriptors.push_back({config, impl_type});
-    }
+            auto factory = std::make_shared<ROIAlignExecutorFactory>(roialignedAttrs, srcMemoryDescs, dstMemoryDescs,
+                                                                    std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
+            supportedPrimitiveDescriptors.push_back({config, impl_type, factory});
+        } else {
+            supportedPrimitiveDescriptors.push_back({config, impl_type});
+        }
     }
 }
 
@@ -911,19 +911,19 @@ struct ROIAlign::ROIAlignExecute {
 };
 void ROIAlign::execute(dnnl::stream strm) {
     if (!useACL) {
-    auto inputPrec = getParentEdgeAt(0)->getMemory().GetDataType();
-    auto outputPrec = getChildEdgeAt(0)->getMemory().GetDataType();
-    if (!((inputPrec == dnnl_bf16 && outputPrec == dnnl_bf16) ||
-          (inputPrec == dnnl_f32 && outputPrec == dnnl_f32)))
-        IE_THROW() <<"ROIAlign doesn't support demanded precisions";
+        auto inputPrec = getParentEdgeAt(0)->getMemory().GetDataType();
+        auto outputPrec = getChildEdgeAt(0)->getMemory().GetDataType();
+        if (!((inputPrec == dnnl_bf16 && outputPrec == dnnl_bf16) ||
+            (inputPrec == dnnl_f32 && outputPrec == dnnl_f32)))
+            IE_THROW() <<"ROIAlign doesn't support demanded precisions";
 
-    ROIAlignContext ctx = {
-            *this
-    };
+        ROIAlignContext ctx = {
+                *this
+        };
 
-    OV_SWITCH(intel_cpu, ROIAlignExecute, ctx, std::tie(inputPrec, outputPrec),
-              OV_CASE2(dnnl_f32, dnnl_f32, float, float),
-              OV_CASE2(dnnl_bf16, dnnl_bf16, bfloat16_t, bfloat16_t))
+        OV_SWITCH(intel_cpu, ROIAlignExecute, ctx, std::tie(inputPrec, outputPrec),
+                OV_CASE2(dnnl_f32, dnnl_f32, float, float),
+                OV_CASE2(dnnl_bf16, dnnl_bf16, bfloat16_t, bfloat16_t))
     } else {
         if (!execPtr) {
             IE_THROW() << "Can't execute ROIAlign node. Executor is not created";

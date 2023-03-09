@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#include "executors/gather_list.hpp"
+
 namespace ov {
 namespace intel_cpu {
 namespace node {
@@ -53,6 +55,10 @@ protected:
 private:
     void initShortParams(threadExecParams& p, uint64_t start);
     void execReference();
+
+    GatherAttrs gatherAttrs;
+    bool useACL = false;
+    std::shared_ptr<GatherExecutor> execPtr = nullptr;
 
     bool isDataShapeStat = false;
     bool isIdxShapeStat = false;

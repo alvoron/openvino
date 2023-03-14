@@ -56,6 +56,11 @@ private:
     void initShortParams(threadExecParams& p, uint64_t start);
     void execReference();
 
+    void addSupportedPrimDesc(const std::vector<PortConfigurator>& inPortConfigs,
+                              const std::vector<PortConfigurator>& outPortConfigs,
+                              impl_desc_type implType,
+                              bool dynBatchSupport);
+
     GatherAttrs gatherAttrs;
     bool useACL = false;
     std::shared_ptr<GatherExecutor> execPtr = nullptr;
@@ -69,7 +74,7 @@ private:
     uint64_t dataTypeSize = 1lu;
     static constexpr uint64_t idxTypeSize = sizeof(int);
 
-    int axis = 0;
+    //int axis = 0;
     int axisDim = 0;
     int batchDims = 0;
     int dataSrcRank = 1;

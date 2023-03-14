@@ -13,9 +13,7 @@ namespace ov {
 namespace intel_cpu {
 
 struct GatherAttrs {
-    std::vector<int> axes;
-    Algorithm operation;
-    bool keepDims;
+    int axis;
 };
 
 class GatherExecutor {

@@ -17,63 +17,32 @@ bool AclGatherExecutor::init(const GatherAttrs& gatherAttrs,
                           const std::vector<MemoryDescPtr>& dstDescs,
                           const dnnl::primitive_attr &attr) {
     std::cout << "AclGatherExecutor::init" << std::endl;
-    /*if (reduceAttrs.operation != Algorithm::ReduceMax &&
-        reduceAttrs.operation != Algorithm::ReduceMin &&
-        reduceAttrs.operation != Algorithm::ReduceSum &&
-        reduceAttrs.operation != Algorithm::ReduceProd &&
-        reduceAttrs.operation != Algorithm::ReduceMean) {
-            return false;
-        }
-
-    this->reduceAttrs = reduceAttrs;
 
     auto srcDims = srcDescs[0]->getShape().getStaticDims();
+    auto indDims = srcDescs[1]->getShape().getStaticDims();
     auto dstDims = dstDescs[0]->getShape().getStaticDims();
 
     TensorInfo srcTensorInfo = TensorInfo(shapeCast(srcDims), 1,
     precisionToAclDataType(srcDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[0]));
+    TensorInfo indTensorInfo = TensorInfo(shapeCast(indDims), 1,
+    precisionToAclDataType(srcDescs[1]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[1]));
     TensorInfo dstTensorInfo = TensorInfo(shapeCast(dstDims), 1,
     precisionToAclDataType(dstDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(dstDescs[0]));
 
+    auto axis = axisCast(gatherAttrs.axis, srcDims.size());
+    std::cout << "axis: " << axis << std::endl;
+    Status s = NEGather::validate(&srcTensorInfo, &indTensorInfo, &dstTensorInfo, axis);
+    if (!s) {
+        DEBUG_LOG("NEGather validation failed: ", s.error_description());
+        return false;
+    }
+
     srcTensor.allocator()->init(srcTensorInfo);
+    indTensor.allocator()->init(indTensorInfo);
     dstTensor.allocator()->init(dstTensorInfo);
 
-    switch (reduceAttrs.operation) {
-        case Algorithm::ReduceMean:
-            for (size_t i = 0; i < reduceAttrs.axes.size(); ++i) {
-                auto pos = axisCast(i, reduceAttrs.axes.size());
-                axesMean.set(pos, reduceAttrs.axes[i]);
-            }
-            if (!arm_compute::NEReduceMean::validate(&srcTensorInfo, axesMean, reduceAttrs.keepDims, &dstTensorInfo)) {
-                return false;
-            }
-            exec_func = [this]{
-                auto acl_op = std::make_unique<arm_compute::NEReduceMean>();
-                acl_op->configure(&srcTensor, axesMean, this->reduceAttrs.keepDims, &dstTensor);
-                acl_op->run();
-            };
-            break;
-        case Algorithm::ReduceMax:
-        case Algorithm::ReduceMin:
-        case Algorithm::ReduceSum:
-        case Algorithm::ReduceProd:
-            if (reduceAttrs.axes.size() != 1) {
-                return false;
-            }
-            if (!arm_compute::NEReductionOperation::validate(&srcTensorInfo, &dstTensorInfo, axisCast(reduceAttrs.axes[0], srcDims.size()),
-                                                            getAclReductionOperationByAlgorithm(reduceAttrs.operation), reduceAttrs.keepDims)) {
-                return false;
-            }
-            exec_func = [this, srcDims]{
-                auto acl_op = std::make_unique<arm_compute::NEReductionOperation>();
-                acl_op->configure(&srcTensor, &dstTensor, axisCast(this->reduceAttrs.axes[0], srcDims.size()),
-                                    getAclReductionOperationByAlgorithm(this->reduceAttrs.operation), this->reduceAttrs.keepDims);
-                acl_op->run();
-            };
-            break;
-        default:
-            IE_THROW() << "Unsupported operation type for ACL Reduce executor: " << static_cast<int>(reduceAttrs.operation);
-    }*/
+    gather = std::make_unique<NEGather>();
+    gather->configure(&srcTensor, &indTensor, &dstTensor, axis);
 
     return true;
 }
@@ -81,11 +50,13 @@ bool AclGatherExecutor::init(const GatherAttrs& gatherAttrs,
 void AclGatherExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, std::unordered_map<int, MemoryPtr> postOpsArgs) {
     std::cout << "AclGatherExecutor::exec" << std::endl;
     srcTensor.allocator()->import_memory(src[0]->GetPtr());
+    indTensor.allocator()->import_memory(src[1]->GetPtr());
     dstTensor.allocator()->import_memory(dst[0]->GetPtr());
 
     gather->run();
 
     srcTensor.allocator()->free();
+    indTensor.allocator()->free();
     dstTensor.allocator()->free();
 }
 

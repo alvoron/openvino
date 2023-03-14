@@ -102,6 +102,7 @@ namespace intel_cpu {
 Node::NodesFactory::NodesFactory()
     : Factory("NodesFactory") {
     using namespace node;
+    INTEL_CPU_NODE(Gather, Type::Gather);
     INTEL_CPU_NODE(Generic, Type::Generic);
     INTEL_CPU_NODE(CumSum, Type::CumSum);
     INTEL_CPU_NODE(Convolution, Type::Convolution);
@@ -174,7 +175,6 @@ Node::NodesFactory::NodesFactory()
     INTEL_CPU_NODE(Unique, Type::Unique);
     INTEL_CPU_NODE(Reduce, Type::Reduce);
 #if defined(OPENVINO_ARCH_X86_64)
-    INTEL_CPU_NODE(Gather, Type::Gather);
     INTEL_CPU_NODE(GridSample, Type::GridSample);
     INTEL_CPU_NODE(DeformableConvolution, Type::DeformableConvolution);
     INTEL_CPU_NODE(DepthToSpace, Type::DepthToSpace);

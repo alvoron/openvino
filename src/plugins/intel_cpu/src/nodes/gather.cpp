@@ -12,6 +12,11 @@
 #include <utils/general_utils.h>
 #include "kernels/x64/gather_uni_kernel.hpp"
 
+#if defined(OV_CPU_WITH_ACL)
+#include "executors/acl/acl_utils.hpp"
+#include "utils/debug_capabilities.h"
+#endif
+
 using namespace InferenceEngine;
 using namespace dnnl::impl::cpu;
 
@@ -85,11 +90,11 @@ Gather::Gather(const std::shared_ptr<ov::Node>& op, const GraphContext::CPtr con
 
     if (ov::is_type<ov::op::v0::Constant>(op->get_input_node_ptr(GATHER_AXIS))) {
         isAxisInputConst = true;
-        axis = ov::as_type<ov::op::v0::Constant>(op->get_input_node_ptr(GATHER_AXIS))->cast_vector<int>()[0];
-        if (axis < 0)
-            axis += dataSrcRank;
-        if (axis < 0 || axis >= dataSrcRank || batchDims > axis)
-            THROW_ERROR << "has incorrect input parameter axis value: " << axis;
+        gatherAttrs.axis = ov::as_type<ov::op::v0::Constant>(op->get_input_node_ptr(GATHER_AXIS))->cast_vector<int>()[0];
+        if (gatherAttrs.axis < 0)
+            gatherAttrs.axis += dataSrcRank;
+        if (gatherAttrs.axis < 0 || gatherAttrs.axis >= dataSrcRank || batchDims > gatherAttrs.axis)
+            THROW_ERROR << "has incorrect input parameter axis value: " << gatherAttrs.axis;
     }
 }
 
@@ -101,10 +106,10 @@ void Gather::initSupportedPrimitiveDescriptors() {
 
     const auto& dataDims = getInputShapeAtPort(GATHER_DATA).getDims();
     if (isAxisInputConst && isDataShapeStat) {
-        axisDim = dataDims[axis];
-        beforeAxisSize = std::accumulate(dataDims.begin(), dataDims.begin() + axis, 1lu, std::multiplies<Dim>());
-        betweenBatchAndAxisSize = std::accumulate(dataDims.begin() + batchDims, dataDims.begin() + axis, 1lu, std::multiplies<Dim>());
-        afterAxisSize = std::accumulate(dataDims.begin() + axis + 1, dataDims.end(), 1lu, std::multiplies<Dim>());
+        axisDim = dataDims[gatherAttrs.axis];
+        beforeAxisSize = std::accumulate(dataDims.begin(), dataDims.begin() + gatherAttrs.axis, 1lu, std::multiplies<Dim>());
+        betweenBatchAndAxisSize = std::accumulate(dataDims.begin() + batchDims, dataDims.begin() + gatherAttrs.axis, 1lu, std::multiplies<Dim>());
+        afterAxisSize = std::accumulate(dataDims.begin() + gatherAttrs.axis + 1, dataDims.end(), 1lu, std::multiplies<Dim>());
 
         afterAxisSizeInBytes = afterAxisSize * dataTypeSize;
         axisAndAfterAxisSizeInBytes = axisDim * afterAxisSizeInBytes;
@@ -133,7 +138,64 @@ void Gather::initSupportedPrimitiveDescriptors() {
                          isDynamicNode());
 }
 
+void Gather::addSupportedPrimDesc(const std::vector<PortConfigurator>& inPortConfigs,
+                                const std::vector<PortConfigurator>& outPortConfigs,
+                                impl_desc_type implType,
+                                bool dynBatchSupport) {
+    auto fill_port = [] (const PortConfigurator& portConfigurator, const Shape& shape,
+                         InferenceEngine::Precision prc, std::vector<PortConfig>& port) -> bool {
+        // In order to simplify particular node initialization logic we just don't add config in case target shape is not supported by blockedDescCreator.
+        // This should be suitable for major of scenarios since almost all nodes add `ncsp` blockedDescCreator which supports any shape rank.
+        if (shape.getRank() < portConfigurator.blockedDescCreator->getMinimalRank())
+            return false;
+
+        PortConfig portConfig;
+        portConfig.inPlace(portConfigurator.inPlace);
+        portConfig.constant(portConfigurator.constant);
+        portConfig.setMemDesc(portConfigurator.blockedDescCreator->createSharedDesc(prc, shape));
+
+        port.push_back(std::move(portConfig));
+
+        return true;
+    };
+
+    NodeConfig config;
+    for (size_t i = 0; i < inPortConfigs.size(); i++) {
+        auto shape = inPortConfigs[i].shape.getRank() == 0 ? getInputShapeAtPort(i) : inPortConfigs[i].shape;
+        auto prc = inPortConfigs[i].prc == InferenceEngine::Precision::UNSPECIFIED ? getOriginalInputPrecisionAtPort(i) : inPortConfigs[i].prc;
+        if (!fill_port(inPortConfigs[i], shape, prc, config.inConfs))
+            return;
+    }
+
+    for (size_t i = 0; i < outPortConfigs.size(); i++) {
+        auto dims = outPortConfigs[i].shape.getRank() == 0 ? getOutputShapeAtPort(i) : outPortConfigs[i].shape;
+        auto prc = outPortConfigs[i].prc == InferenceEngine::Precision::UNSPECIFIED ? getOriginalOutputPrecisionAtPort(i) : outPortConfigs[i].prc;
+        if (!fill_port(outPortConfigs[i], dims, prc, config.outConfs))
+            return;
+    }
+
+    config.dynBatchSupport = dynBatchSupport;
+#if defined(OPENVINO_ARCH_X86_64)
+    supportedPrimitiveDescriptors.push_back({config, implType});
+#else
+    std::vector<MemoryDescPtr> srcMemoryDescs;
+    for (int i = 0; i < config.inConfs.size(); i++) {
+        srcMemoryDescs.push_back(config.inConfs[i].getMemDesc());
+    }
+
+    std::vector<MemoryDescPtr> dstMemoryDescs;
+    for (int i = 0; i < config.outConfs.size(); i++) {
+        dstMemoryDescs.push_back(config.outConfs[i].getMemDesc());
+    }
+
+    auto factory = std::make_shared<GatherExecutorFactory>(gatherAttrs, srcMemoryDescs, dstMemoryDescs,
+                                                           std::make_shared<ExecutorContext>(context, getPrimitivesPriority()));
+    supportedPrimitiveDescriptors.push_back({config, impl_desc_type::undef, factory});
+#endif
+}
+
 void Gather::createPrimitive() {
+#if defined(OPENVINO_ARCH_X86_64)
     uint64_t idxElPerVec = 1;
     if (!isDynamicNode()) {
         idxElPerVec = x64::mayiuse(x64::avx512_core) ? x64::cpu_isa_traits<x64::avx512_core>::vlen / idxTypeSize :
@@ -198,14 +260,14 @@ void Gather::createPrimitive() {
             }
         }
     }
-
+#endif
     Node::createPrimitive();
 }
 
 bool Gather::needPrepareParams() const {
     bool result = inputShapesModified();
     if (!isAxisInputConst)
-        result = result || axis != (reinterpret_cast<const int32_t*>(getParentEdgeAt(GATHER_AXIS)->getMemoryPtr()->GetPtr()))[0];
+        result = result || gatherAttrs.axis != (reinterpret_cast<const int32_t*>(getParentEdgeAt(GATHER_AXIS)->getMemoryPtr()->GetPtr()))[0];
     return result;
 }
 
@@ -218,7 +280,7 @@ void Gather::prepareParams() {
         THROW_ERROR << " has not allocated input indices memory.";
     if (getSelectedPrimitiveDescriptor() == nullptr)
         THROW_ERROR << " has unidentified preferable primitive descriptor.";
-
+#if defined(OPENVINO_ARCH_X86_64)
     if (!isAxisInputConst) {
         axis = (reinterpret_cast<const int32_t*>(getParentEdgeAt(GATHER_AXIS)->getMemoryPtr()->GetPtr()))[0];
         if (axis < 0)
@@ -262,9 +324,25 @@ void Gather::prepareParams() {
     } else {
         selectedPD->setImplementationType(ref_any);
     }
+#else
+    std::vector<MemoryDescPtr> srcMemoryDescs;
+    for (int i = 0; i < getOriginalInputsNumber(); i++) {
+        srcMemoryDescs.push_back(getParentEdgeAt(i)->getMemoryPtr()->getDescPtr());
+    }
+    std::vector<MemoryDescPtr> dstMemoryDescs;
+    for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+        dstMemoryDescs.push_back(getChildEdgeAt(i)->getMemoryPtr()->getDescPtr());
+    }
+    dnnl::primitive_attr attr;
+    auto selectedPD = getSelectedPrimitiveDescriptor();
+
+    execPtr = selectedPD->getExecutorFactoryAs<GatherExecutorFactory>()->makeExecutor(gatherAttrs, srcMemoryDescs, dstMemoryDescs, attr);
+    selectedPD->setImplementationType(execPtr->getImplType());
+#endif
 }
 
 void Gather::execute(dnnl::stream strm) {
+#if defined(OPENVINO_ARCH_X86_64)
     if (jitKernel && jitKernel->isSupportedConfiguration(afterAxisSize)) {
         const void* srcIndices = getParentEdgeAt(GATHER_INDICES)->getMemoryPtr()->GetPtr();
         const void* srcData = getParentEdgeAt(GATHER_DATA)->getMemoryPtr()->GetPtr();
@@ -315,6 +393,22 @@ void Gather::execute(dnnl::stream strm) {
     } else {
         execReference();
     }
+#else
+    if (!execPtr) {
+        IE_THROW() << "Can't execute Reduce node. Executor is not created";
+    }
+
+    std::vector<MemoryCPtr> srcMemory;
+    for (int i = 0; i < getOriginalInputsNumber(); i++) {
+        srcMemory.push_back(getParentEdgeAt(i)->getMemoryPtr());
+    }
+    std::vector<MemoryPtr> dstMemory;
+    for (int i = 0; i < getOriginalOutputsNumber(); i++) {
+        dstMemory.push_back(getChildEdgeAt(i)->getMemoryPtr());
+    }
+
+    execPtr->exec(srcMemory, dstMemory, postOpsArgs);
+#endif
 }
 
 void Gather::executeDynamicImpl(dnnl::stream strm) {

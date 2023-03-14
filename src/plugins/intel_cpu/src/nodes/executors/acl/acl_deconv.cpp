@@ -23,7 +23,9 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
     auto srcDims  = srcDescs[0]->getShape().getStaticDims();
     auto weiDims  = srcDescs[1]->getShape().getStaticDims();
     //swap input and output channels dimensions to be align with ACL
+    //weights tensor shape is changed because ACL expects [W, H, I, O] tensor while OV uses [I, O, H, W] tensor
     std::swap(weiDims[0], weiDims[1]);
+    weiNum = weiDims[0] * weiDims[1] * weiDims[2] * weiDims[3] / 4;
     auto dstDims  = dstDescs[0]->getShape().getStaticDims();
 
     VectorDims biasDims;
@@ -87,8 +89,24 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
 
 void AclDeconvExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, const void *post_ops_data_) {
     std::cout << "AclDeconvExecutor::exec" << std::endl;
+
+    //weights tensor shape is changed because ACL expects [W, H, I, O] tensor while OV uses [I, O, H, W] tensor
+    float* elem = reinterpret_cast<float*>(src[1]->GetPtr());
+    for (int i = 0; i < weiNum; i++) {
+        //weiBuffer.push_back(*(elem + i * 4 + 3));   // W
+        //weiBuffer.push_back(*(elem + i * 4 + 2));   // H
+        //weiBuffer.push_back(*(elem + i * 4));       // I
+        //weiBuffer.push_back(*(elem + i * 4 + 1));   // O
+
+        weiBuffer.push_back(*(elem + i * 4 + 1));   // O
+        weiBuffer.push_back(*(elem + i * 4));       // I
+        weiBuffer.push_back(*(elem + i * 4 + 2));   // H
+        weiBuffer.push_back(*(elem + i * 4 + 3));   // W
+    }
+    std::cout << "weiBuffer: "; for (int i = 0; i < 10; i++) std::cout << weiBuffer[i] << " "; std::cout << std::endl;
+
     srcTensor.allocator()->import_memory(src[0]->GetPtr());
-    weiTensor.allocator()->import_memory(src[1]->GetPtr());
+    weiTensor.allocator()->import_memory(weiBuffer.data());
     if (this->deconvAttrs.withBiases) biasTensor.allocator()->import_memory(src[2]->GetPtr());
     dstTensor.allocator()->import_memory(dst[0]->GetPtr());
 

@@ -6,6 +6,7 @@
 
 #include "nodes/executors/deconv.hpp"
 #include "arm_compute/runtime/NEON/NEFunctions.h"
+#include "utils/debug_capabilities.h"
 
 namespace ov {
 namespace intel_cpu {
@@ -30,6 +31,9 @@ private:
     DeconvAttrs deconvAttrs;
     impl_desc_type implType = impl_desc_type::acl;
 
+    std::vector<float> weiBuffer;
+    int weiNum;
+
     arm_compute::Tensor srcTensor;
     arm_compute::Tensor weiTensor;
     arm_compute::Tensor biasTensor;
@@ -43,20 +47,53 @@ public:
                      const std::vector<MemoryDescPtr>& srcDescs,
                      const std::vector<MemoryDescPtr>& dstDescs) const override {
         std::cout << "AclDeconvExecutorBuilder::isSupported" << std::endl;
-        /*if (mvnAttrs.epsMode_ == MVNEpsMode::INSIDE_SQRT) {
-            std::cout << "AclMVNExecutorBuilder::isSupported - false (mvnAttrs.epsMode_ == MVNEpsMode::INSIDE_SQRT)" << std::endl;
+        if ((srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 &&
+             srcDescs[1]->getPrecision() != InferenceEngine::Precision::FP32 &&
+             dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP32) &&
+            (srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP16 &&
+             srcDescs[1]->getPrecision() != InferenceEngine::Precision::FP16 &&
+             dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP16)) {
+            DEBUG_LOG("AclDeconvExecutor does not support precisions:",
+                      " src[0]=", srcDescs[0]->getPrecision(),
+                      " src[1]=", srcDescs[1]->getPrecision(),
+                      " dst[0]=", dstDescs[0]->getPrecision());
             return false;
         }
-        if (!mvnAttrs.normalizeVariance_) {
-            std::cout << "AclMVNExecutorBuilder::isSupported - false (!mvnAttrs.normalizeVariance_)" << std::endl;
+        if (deconvAttrs.withBiases &&
+           srcDescs[2]->getPrecision() != srcDescs[0]->getPrecision()) {
+            DEBUG_LOG("AclDeconvExecutor does not support precisions:",
+                      " src[2]=", srcDescs[2]->getPrecision());
             return false;
-        }
-        // ACL supports MVN with 2D inputs only
-        if (srcDescs[0]->getShape().getRank() != 2) {
-            std::cout << "AclMVNExecutorBuilder::isSupported -false (srcDescs[0]->getShape().getRank() != 2 (" << srcDescs[0]->getShape().getRank() << "))" << std::endl;
-            return false;
-        }*/
+           }
 
+        if (!(srcDescs[0]->hasLayoutType(LayoutType::ncsp) &&
+              srcDescs[1]->hasLayoutType(LayoutType::ncsp) &&
+              dstDescs[0]->hasLayoutType(LayoutType::ncsp)) &&
+            !(srcDescs[0]->hasLayoutType(LayoutType::nspc) &&
+              srcDescs[1]->hasLayoutType(LayoutType::nspc) &&
+              dstDescs[0]->hasLayoutType(LayoutType::nspc))) {
+                DEBUG_LOG("AclDeconvExecutor does not support layouts:",
+                    " src[0]=", srcDescs[0]->serializeFormat(),
+                    " src[1]=", srcDescs[1]->serializeFormat(),
+                    " dst=", dstDescs[0]->serializeFormat());
+                return false;
+              }
+        if (deconvAttrs.withBiases &&
+            !(srcDescs[0]->hasLayoutType(LayoutType::ncsp) &&
+              srcDescs[1]->hasLayoutType(LayoutType::ncsp) &&
+              srcDescs[2]->hasLayoutType(LayoutType::ncsp) &&
+              dstDescs[0]->hasLayoutType(LayoutType::ncsp)) &&
+            !(srcDescs[0]->hasLayoutType(LayoutType::nspc) &&
+              srcDescs[1]->hasLayoutType(LayoutType::nspc) &&
+              srcDescs[2]->hasLayoutType(LayoutType::nspc) &&
+              dstDescs[0]->hasLayoutType(LayoutType::nspc))) {
+                DEBUG_LOG("AclDeconvExecutor does not support layouts:",
+                    " src[0]=", srcDescs[0]->serializeFormat(),
+                    " src[1]=", srcDescs[1]->serializeFormat(),
+                    " src[2]=", srcDescs[2]->serializeFormat(),
+                    " dst=", dstDescs[0]->serializeFormat());
+                return false;
+              }
         return true;
     }
 

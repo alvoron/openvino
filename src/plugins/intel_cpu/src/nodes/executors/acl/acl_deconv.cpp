@@ -10,7 +10,44 @@ namespace intel_cpu {
 
 using namespace arm_compute;
 
+//FIXME: add context
 AclDeconvExecutor::AclDeconvExecutor() : DeconvExecutor() {}
+
+/*bool AclDeconvExecutor::isSupported(const TensorInfo& srcTensorInfo,
+                                    const TensorInfo& weiTensorInfo,
+                                    const TensorInfo& biasTensorInfo,
+                                    const TensorInfo& dstTensorInfo,
+                                    const DeconvAttrs& deconvAttrs) {
+    unsigned int pad_l = deconvAttrs.paddingL.at(1);
+    unsigned int pad_r = deconvAttrs.paddingR.at(1);
+    unsigned int pad_t = deconvAttrs.paddingL.at(0);
+    unsigned int pad_b = deconvAttrs.paddingR.at(0);
+    unsigned int stride_x = deconvAttrs.stride.at(1);
+    unsigned int stride_y = deconvAttrs.stride.at(0);
+    unsigned int dilation_x = deconvAttrs.dilation.at(1) + 1;
+    unsigned int dilation_y = deconvAttrs.dilation.at(0) + 1;
+
+    std::cout << "pad (l,r): " << pad_l << " " << pad_r << std::endl;
+    std::cout << "pad (t,b): " << pad_t << " " << pad_b << std::endl;
+    std::cout << "stride (x,y): " << stride_x << " " << stride_y << std::endl;
+    std::cout << "dilation (x,y): " << dilation_x << " " << dilation_y << std::endl;
+
+    PadStrideInfo deconv_info(stride_x, stride_y, pad_l, pad_r, pad_t, pad_b, DimensionRoundingType::FLOOR);
+    Size2D dilation(dilation_x, dilation_y);
+
+    Status status = NEDeconvolutionLayer::validate(&srcTensorInfo,
+                                                                           &weiTensorInfo,
+                                                                           deconvAttrs.withBiases ? &biasTensorInfo : nullptr,
+                                                                           &dstTensorInfo,
+                                                                           deconv_info);
+    if (!status) {
+        std::cout << "AclDeconvExecutor::init validate failed: " << status.error_description() << std::endl;
+        return false;
+    } else {
+        std::cout << "AclDeconvExecutor::init validate OK" << std::endl;
+    }
+    return true;
+}*/
 
 bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
                           const std::vector<MemoryDescPtr>& srcDescs,
@@ -18,14 +55,13 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
                           const dnnl::primitive_attr &attr) {
     std::cout << "AclDeconvExecutor::init" << std::endl;
     this->deconvAttrs = deconvAttrs;
-    this->deconvAttrs.withBiases = (srcDescs.size() == 3);
+    //this->deconvAttrs.withBiases = (srcDescs.size() == 3);
 
     auto srcDims  = srcDescs[0]->getShape().getStaticDims();
     auto weiDims  = srcDescs[1]->getShape().getStaticDims();
     //swap input and output channels dimensions to be align with ACL
     //weights tensor shape is changed because ACL expects [W, H, I, O] tensor while OV uses [I, O, H, W] tensor
     std::swap(weiDims[0], weiDims[1]);
-    weiNum = weiDims[0] * weiDims[1] * weiDims[2] * weiDims[3] / 4;
     auto dstDims  = dstDescs[0]->getShape().getStaticDims();
 
     VectorDims biasDims;
@@ -80,6 +116,8 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
     weiTensor.allocator()->init(weiTensorInfo);
     if (this->deconvAttrs.withBiases) biasTensor.allocator()->init(biasTensorInfo);
     dstTensor.allocator()->init(dstTensorInfo);
+
+    //if (!isSupported(srcTensorInfo, weiTensorInfo, biasTensorInfo, dstTensorInfo, this->deconvAttrs))
 
     deconv = std::make_unique<arm_compute::NEDeconvolutionLayer>();
     deconv->configure(&srcTensor, &weiTensor, this->deconvAttrs.withBiases ? &biasTensor : nullptr, &dstTensor, deconv_info);

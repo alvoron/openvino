@@ -46,7 +46,7 @@ public:
     bool canFuse(const NodePtr& node) const override;
 
     const VectorDims& getWeightDims() const { return getInputShapeAtPort(1).getStaticDims(); }
-    const std::vector<ptrdiff_t>& getStride() const { return stride; }
+    const std::vector<ptrdiff_t>& getStride() const { return deconvAttrs.stride; }
 
     void prepareParams() override;
     void execute(dnnl::stream strm) override;
@@ -63,14 +63,13 @@ protected:
     std::vector<dnnl::memory::format_tag> getAvailableFormatsForDims(const Shape& dims) const override;
 
 private:
-#if defined(OPENVINO_ARCH_X86_64)
+//#if defined(OPENVINO_ARCH_X86_64)
     using executorPtr = std::shared_ptr<DnnlExecutor>;
     executorPtr execPtr = nullptr;
-#else
-    DeconvAttrs deconvAttrs;
-    using executorPtr = std::shared_ptr<DeconvExecutor>;
-    std::shared_ptr<DeconvExecutor> execPtr = nullptr;
-#endif
+//#else
+    //using deconvExecutorPtr = std::shared_ptr<DeconvExecutor>;
+    std::shared_ptr<DeconvExecutor> execPtrDeconv = nullptr;
+//#endif
     class DeconvExecutorDefault : public DnnlExecutor {
         public:
             DeconvExecutorDefault(const dnnl::convolution_backward_data::primitive_desc& pd,
@@ -89,6 +88,7 @@ private:
                                const dnnl::engine& engine);
     };
 
+    bool useACL = false;
     bool withGroups = false;
     bool isDW = false;
     bool isInt8 = false;
@@ -97,15 +97,16 @@ private:
     size_t groupNum = 1;
     size_t IC;
     size_t OC;
-    std::vector<ptrdiff_t> kernel;
-    std::vector<ptrdiff_t> stride;
-    std::vector<ptrdiff_t> dilation;
-    ov::CoordinateDiff paddingL;
-    ov::CoordinateDiff paddingR;
-    ov::CoordinateDiff outputPadding;
-    std::vector<int32_t> lastOutputSpatialDims;
-    VectorDims int8WeightDims;
-    VectorDims biasesDims;
+    DeconvAttrs deconvAttrs;
+    //std::vector<ptrdiff_t> kernel;
+    //std::vector<ptrdiff_t> stride;
+    //std::vector<ptrdiff_t> dilation;
+    //ov::CoordinateDiff paddingL;
+    //ov::CoordinateDiff paddingR;
+    //ov::CoordinateDiff outputPadding;
+    //std::vector<int32_t> lastOutputSpatialDims;
+    //VectorDims int8WeightDims;
+    //VectorDims biasesDims;
 
     Shape inShape;
 

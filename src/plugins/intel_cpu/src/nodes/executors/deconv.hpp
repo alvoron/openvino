@@ -14,12 +14,17 @@ namespace intel_cpu {
 // Defines way to add epsilon: inside sqrt or outside.
 struct DeconvAttrs {
     bool withBiases = false;
+    std::vector<ptrdiff_t> kernel;
     std::vector<ptrdiff_t> stride;
     std::vector<ptrdiff_t> dilation;
     std::vector<ptrdiff_t> paddingL;
     std::vector<ptrdiff_t> paddingR;
-    InferenceEngine::SizeVector weightDims;
-    InferenceEngine::SizeVector biasesDims;
+    ov::CoordinateDiff outputPadding;
+    std::vector<int32_t> lastOutputSpatialDims;
+    VectorDims int8WeightDims;
+    VectorDims biasesDims;
+    //InferenceEngine::SizeVector weightDims;
+    //InferenceEngine::SizeVector biasesDims;
 };
 
 class DeconvExecutor {

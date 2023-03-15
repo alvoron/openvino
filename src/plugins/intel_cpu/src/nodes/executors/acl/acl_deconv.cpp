@@ -87,23 +87,40 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
     return true;
 }
 
+static void transpose_to_1023(const MemoryCPtr& srcMemPtr, std::vector<float>& dst_data) {
+    const auto src_data = reinterpret_cast<float*>(srcMemPtr->GetPtr());
+
+    const int DIM0 = srcMemPtr->getStaticDims()[0];
+    const int DIM1 = srcMemPtr->getStaticDims()[1];
+    const int DIM2 = srcMemPtr->getStaticDims()[2];
+    const int DIM3 = srcMemPtr->getStaticDims()[3];
+
+    for (int dim0 = 0; dim0 < DIM0; ++dim0)
+        for (int dim1 = 0; dim1 < DIM1; ++dim1)
+            for (int dim2 = 0; dim2 < DIM2; ++dim2)
+                for (int dim3 = 0; dim3 < DIM3; ++dim3) {
+                    const int src_off = dim0 * DIM1 * DIM2 * DIM3 +
+                                        dim1 * DIM2 * DIM3 +
+                                        dim2 * DIM3 +
+                                        dim3;
+                    const int dst_off = dim1 * DIM0 * DIM2 * DIM3 +
+                                        dim0 * DIM2 * DIM3 +
+                                        dim2 * DIM3 +
+                                        dim3;
+
+                    dst_data[dst_off] = src_data[src_off];
+                }
+}
+
 void AclDeconvExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, const void *post_ops_data_) {
     std::cout << "AclDeconvExecutor::exec" << std::endl;
 
     //weights tensor shape is changed because ACL expects [W, H, I, O] tensor while OV uses [I, O, H, W] tensor
-    float* elem = reinterpret_cast<float*>(src[1]->GetPtr());
-    for (int i = 0; i < weiNum; i++) {
-        //weiBuffer.push_back(*(elem + i * 4 + 3));   // W
-        //weiBuffer.push_back(*(elem + i * 4 + 2));   // H
-        //weiBuffer.push_back(*(elem + i * 4));       // I
-        //weiBuffer.push_back(*(elem + i * 4 + 1));   // O
-
-        weiBuffer.push_back(*(elem + i * 4 + 1));   // O
-        weiBuffer.push_back(*(elem + i * 4));       // I
-        weiBuffer.push_back(*(elem + i * 4 + 2));   // H
-        weiBuffer.push_back(*(elem + i * 4 + 3));   // W
-    }
-    std::cout << "weiBuffer: "; for (int i = 0; i < 10; i++) std::cout << weiBuffer[i] << " "; std::cout << std::endl;
+    std::vector<float> weiBuffer(src[1]->getStaticDims()[0] *
+                                 src[1]->getStaticDims()[1] *
+                                 src[1]->getStaticDims()[2] *
+                                 src[1]->getStaticDims()[3]);
+    transpose_to_1023(src[1], weiBuffer);
 
     srcTensor.allocator()->import_memory(src[0]->GetPtr());
     weiTensor.allocator()->import_memory(weiBuffer.data());

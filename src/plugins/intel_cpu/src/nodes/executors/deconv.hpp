@@ -23,8 +23,14 @@ struct DeconvAttrs {
     std::vector<int32_t> lastOutputSpatialDims;
     VectorDims int8WeightDims;
     VectorDims biasesDims;
-    //InferenceEngine::SizeVector weightDims;
-    //InferenceEngine::SizeVector biasesDims;
+    bool withGroups = false;
+    bool isDW = false;
+    bool isInt8 = false;
+    bool autoPad = false;
+    bool externOutShape = false;
+    size_t groupNum = 1;
+    size_t IC;
+    size_t OC;
 };
 
 class DeconvExecutor {

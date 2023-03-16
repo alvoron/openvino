@@ -63,13 +63,10 @@ protected:
     std::vector<dnnl::memory::format_tag> getAvailableFormatsForDims(const Shape& dims) const override;
 
 private:
-//#if defined(OPENVINO_ARCH_X86_64)
     using executorPtr = std::shared_ptr<DnnlExecutor>;
     executorPtr execPtr = nullptr;
-//#else
-    //using deconvExecutorPtr = std::shared_ptr<DeconvExecutor>;
     std::shared_ptr<DeconvExecutor> execPtrDeconv = nullptr;
-//#endif
+
     class DeconvExecutorDefault : public DnnlExecutor {
         public:
             DeconvExecutorDefault(const dnnl::convolution_backward_data::primitive_desc& pd,
@@ -89,24 +86,7 @@ private:
     };
 
     bool useACL = false;
-    bool withGroups = false;
-    bool isDW = false;
-    bool isInt8 = false;
-    bool autoPad = false;
-    bool externOutShape = false;
-    size_t groupNum = 1;
-    size_t IC;
-    size_t OC;
     DeconvAttrs deconvAttrs;
-    //std::vector<ptrdiff_t> kernel;
-    //std::vector<ptrdiff_t> stride;
-    //std::vector<ptrdiff_t> dilation;
-    //ov::CoordinateDiff paddingL;
-    //ov::CoordinateDiff paddingR;
-    //ov::CoordinateDiff outputPadding;
-    //std::vector<int32_t> lastOutputSpatialDims;
-    //VectorDims int8WeightDims;
-    //VectorDims biasesDims;
 
     Shape inShape;
 

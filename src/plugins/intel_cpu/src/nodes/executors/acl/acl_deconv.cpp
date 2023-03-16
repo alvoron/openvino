@@ -13,42 +13,6 @@ using namespace arm_compute;
 //FIXME: add context
 AclDeconvExecutor::AclDeconvExecutor() : DeconvExecutor() {}
 
-/*bool AclDeconvExecutor::isSupported(const TensorInfo& srcTensorInfo,
-                                    const TensorInfo& weiTensorInfo,
-                                    const TensorInfo& biasTensorInfo,
-                                    const TensorInfo& dstTensorInfo,
-                                    const DeconvAttrs& deconvAttrs) {
-    unsigned int pad_l = deconvAttrs.paddingL.at(1);
-    unsigned int pad_r = deconvAttrs.paddingR.at(1);
-    unsigned int pad_t = deconvAttrs.paddingL.at(0);
-    unsigned int pad_b = deconvAttrs.paddingR.at(0);
-    unsigned int stride_x = deconvAttrs.stride.at(1);
-    unsigned int stride_y = deconvAttrs.stride.at(0);
-    unsigned int dilation_x = deconvAttrs.dilation.at(1) + 1;
-    unsigned int dilation_y = deconvAttrs.dilation.at(0) + 1;
-
-    std::cout << "pad (l,r): " << pad_l << " " << pad_r << std::endl;
-    std::cout << "pad (t,b): " << pad_t << " " << pad_b << std::endl;
-    std::cout << "stride (x,y): " << stride_x << " " << stride_y << std::endl;
-    std::cout << "dilation (x,y): " << dilation_x << " " << dilation_y << std::endl;
-
-    PadStrideInfo deconv_info(stride_x, stride_y, pad_l, pad_r, pad_t, pad_b, DimensionRoundingType::FLOOR);
-    Size2D dilation(dilation_x, dilation_y);
-
-    Status status = NEDeconvolutionLayer::validate(&srcTensorInfo,
-                                                                           &weiTensorInfo,
-                                                                           deconvAttrs.withBiases ? &biasTensorInfo : nullptr,
-                                                                           &dstTensorInfo,
-                                                                           deconv_info);
-    if (!status) {
-        std::cout << "AclDeconvExecutor::init validate failed: " << status.error_description() << std::endl;
-        return false;
-    } else {
-        std::cout << "AclDeconvExecutor::init validate OK" << std::endl;
-    }
-    return true;
-}*/
-
 bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
                           const std::vector<MemoryDescPtr>& srcDescs,
                           const std::vector<MemoryDescPtr>& dstDescs,
@@ -66,7 +30,7 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
 
     VectorDims biasDims;
     TensorInfo biasTensorInfo;
-    if (this->deconvAttrs.withBiases) {
+    if (deconvAttrs.withBiases) {
         std::cout << "with BIAS mode" << std::endl;
         biasDims = srcDescs[2]->getShape().getStaticDims();
         //bias presicion is I32 but ACL requests bias precision as input ones
@@ -102,7 +66,7 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
 
     arm_compute::Status status = arm_compute::NEDeconvolutionLayer::validate(&srcTensorInfo,
                                                                            &weiTensorInfo,
-                                                                           this->deconvAttrs.withBiases ? &biasTensorInfo : nullptr,
+                                                                           deconvAttrs.withBiases ? &biasTensorInfo : nullptr,
                                                                            &dstTensorInfo,
                                                                            deconv_info);
     if (!status) {
@@ -114,13 +78,12 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
 
     srcTensor.allocator()->init(srcTensorInfo);
     weiTensor.allocator()->init(weiTensorInfo);
-    if (this->deconvAttrs.withBiases) biasTensor.allocator()->init(biasTensorInfo);
     dstTensor.allocator()->init(dstTensorInfo);
-
-    //if (!isSupported(srcTensorInfo, weiTensorInfo, biasTensorInfo, dstTensorInfo, this->deconvAttrs))
+    if (deconvAttrs.withBiases)
+        biasTensor.allocator()->init(biasTensorInfo);
 
     deconv = std::make_unique<arm_compute::NEDeconvolutionLayer>();
-    deconv->configure(&srcTensor, &weiTensor, this->deconvAttrs.withBiases ? &biasTensor : nullptr, &dstTensor, deconv_info);
+    deconv->configure(&srcTensor, &weiTensor, deconvAttrs.withBiases ? &biasTensor : nullptr, &dstTensor, deconv_info);
 
     return true;
 }
@@ -161,16 +124,18 @@ void AclDeconvExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vect
     transpose_to_1023(src[1], weiBuffer);
 
     srcTensor.allocator()->import_memory(src[0]->GetPtr());
-    weiTensor.allocator()->import_memory(weiBuffer.data());
-    if (this->deconvAttrs.withBiases) biasTensor.allocator()->import_memory(src[2]->GetPtr());
     dstTensor.allocator()->import_memory(dst[0]->GetPtr());
+    weiTensor.allocator()->import_memory(weiBuffer.data());
+    if (deconvAttrs.withBiases)
+        biasTensor.allocator()->import_memory(src[2]->GetPtr());
 
     deconv->run();
 
     srcTensor.allocator()->free();
-    weiTensor.allocator()->free();
-    if (this->deconvAttrs.withBiases) biasTensor.allocator()->free();
     dstTensor.allocator()->free();
+    weiTensor.allocator()->free();
+    if (deconvAttrs.withBiases)
+        biasTensor.allocator()->free();
 }
 
 }   // namespace intel_cpu

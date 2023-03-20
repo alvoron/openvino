@@ -451,6 +451,11 @@ void Deconvolution::getSupportedDescriptors() {
         useACL = true;
     }
 #endif
+    VectorDims inDims, outDims;
+    std::tie(inDims, outDims) = makeDummyInOutShape();
+    inShape = Shape(inDims);
+    Shape outShape(outDims);
+    initPaddingR(inShape, outShape);
     if (useACL) return;
     //ONEDNN deconvolution_fwd_t primitive can support bias fusing.
     //ONEDNN convolution_data_bwd_t can't support bias fusing.
@@ -484,11 +489,6 @@ void Deconvolution::getSupportedDescriptors() {
     if (getChildEdges().empty()) {
         IE_THROW() << errorPrefix << " has incorrect number of output edges";
     }
-    VectorDims inDims, outDims;
-    std::tie(inDims, outDims) = makeDummyInOutShape();
-    inShape = Shape(inDims);
-    Shape outShape(outDims);
-    initPaddingR(inShape, outShape);
 
     if (deconvAttrs.isInt8) {
         deconvAttrs.int8WeightDims = getWeightDims();

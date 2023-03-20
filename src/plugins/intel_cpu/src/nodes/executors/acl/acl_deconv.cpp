@@ -18,10 +18,7 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
                           const std::vector<MemoryDescPtr>& srcDescs,
                           const std::vector<MemoryDescPtr>& dstDescs,
                           const dnnl::primitive_attr &attr) {
-    std::cout << "AclDeconvExecutor::init" << std::endl;
     this->deconvAttrs = deconvAttrs;
-    //this->deconvAttrs.withBiases = (srcDescs.size() == 3);
-
     auto srcDims  = srcDescs[0]->getShape().getStaticDims();
     auto weiDims  = srcDescs[1]->getShape().getStaticDims();
     //swap input and output channels dimensions to be align with ACL
@@ -32,13 +29,10 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
     VectorDims biasDims;
     TensorInfo biasTensorInfo;
     if (deconvAttrs.withBiases) {
-        std::cout << "with BIAS mode" << std::endl;
         biasDims = srcDescs[2]->getShape().getStaticDims();
         //bias presicion is I32 but ACL requests bias precision as input ones
         biasTensorInfo = TensorInfo(shapeCast(biasDims), 1,
         precisionToAclDataType(srcDescs[0]->getPrecision()), getAclDataLayoutByMemoryDesc(srcDescs[2]));
-    } else {
-        std::cout << "non-BIAS mode" << std::endl;
     }
 
     TensorInfo srcTensorInfo = TensorInfo(shapeCast(srcDims), 1,
@@ -57,11 +51,6 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
     unsigned int dilation_x = deconvAttrs.dilation.at(1) + 1;
     unsigned int dilation_y = deconvAttrs.dilation.at(0) + 1;
 
-    std::cout << "pad (l,r): " << pad_l << " " << pad_r << std::endl;
-    std::cout << "pad (t,b): " << pad_t << " " << pad_b << std::endl;
-    std::cout << "stride (x,y): " << stride_x << " " << stride_y << std::endl;
-    std::cout << "dilation (x,y): " << dilation_x << " " << dilation_y << std::endl;
-
     arm_compute::PadStrideInfo deconv_info(stride_x, stride_y, pad_l, pad_r, pad_t, pad_b, arm_compute::DimensionRoundingType::FLOOR);
     arm_compute::Size2D dilation(dilation_x, dilation_y);
 
@@ -71,10 +60,8 @@ bool AclDeconvExecutor::init(const DeconvAttrs& deconvAttrs,
                                                                            &dstTensorInfo,
                                                                            deconv_info);
     if (!status) {
-        std::cout << "AclDeconvExecutor::init validate failed: " << status.error_description() << std::endl;
+        DEBUG_LOG("NEDeconvolutionLayer validation failed: ", status.error_description());
         return false;
-    } else {
-        std::cout << "AclDeconvExecutor::init validate OK" << std::endl;
     }
 
     srcTensor.allocator()->init(srcTensorInfo);
@@ -114,8 +101,6 @@ static void transpose_to_1023(const MemoryCPtr& srcMemPtr, std::vector<float>& d
 }
 
 void AclDeconvExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, const void *post_ops_data_) {
-    std::cout << "AclDeconvExecutor::exec" << std::endl;
-
     //weights tensor shape is changed because ACL expects [W, H, I, O] tensor while OV uses [I, O, H, W] tensor
     std::vector<float> weiBuffer(src[1]->getStaticDims()[0] *
                                  src[1]->getStaticDims()[1] *

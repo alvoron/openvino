@@ -49,7 +49,6 @@ public:
     bool isSupported(const DeconvAttrs& deconvAttrs,
                      const std::vector<MemoryDescPtr>& srcDescs,
                      const std::vector<MemoryDescPtr>& dstDescs) const override {
-        std::cout << "AclDeconvExecutorBuilder::isSupported" << std::endl;
         if ((srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 &&
              srcDescs[1]->getPrecision() != InferenceEngine::Precision::FP32 &&
              dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP32) &&

@@ -23,12 +23,6 @@ public:
               const std::vector<MemoryPtr>& dst,
               const void *post_ops_data_) override;
 
-    /*static bool isSupported(const arm_compute::TensorInfo& srcTensorInfo,
-                                    const arm_compute::TensorInfo& weiTensorInfo,
-                                    const arm_compute::TensorInfo& biasTensorInfo,
-                                    const arm_compute::TensorInfo& dstTensorInfo,
-                                    const DeconvAttrs& deconvAttrs);*/
-
     impl_desc_type getImplType() const override {
         return implType;
     }

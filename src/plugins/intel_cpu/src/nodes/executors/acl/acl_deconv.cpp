@@ -4,6 +4,7 @@
 
 #include "acl_deconv.hpp"
 #include "acl_utils.hpp"
+#include "ie_parallel.hpp"
 
 namespace ov {
 namespace intel_cpu {
@@ -96,9 +97,7 @@ static void transpose_to_1023(const MemoryCPtr& srcMemPtr, std::vector<float>& d
     const int DIM2 = srcMemPtr->getStaticDims()[2];
     const int DIM3 = srcMemPtr->getStaticDims()[3];
 
-    for (int dim0 = 0; dim0 < DIM0; ++dim0)
-        for (int dim1 = 0; dim1 < DIM1; ++dim1)
-            for (int dim2 = 0; dim2 < DIM2; ++dim2)
+    parallel_for3d(DIM0, DIM1, DIM2, [&](const int dim0, const int dim1, const int dim2) {
                 for (int dim3 = 0; dim3 < DIM3; ++dim3) {
                     const int src_off = dim0 * DIM1 * DIM2 * DIM3 +
                                         dim1 * DIM2 * DIM3 +
@@ -111,6 +110,7 @@ static void transpose_to_1023(const MemoryCPtr& srcMemPtr, std::vector<float>& d
 
                     dst_data[dst_off] = src_data[src_off];
                 }
+    });
 }
 
 void AclDeconvExecutor::exec(const std::vector<MemoryCPtr>& src, const std::vector<MemoryPtr>& dst, const void *post_ops_data_) {

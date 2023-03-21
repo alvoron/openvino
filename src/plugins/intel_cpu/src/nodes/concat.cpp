@@ -522,6 +522,7 @@ size_t Concat::inverseOrder(const SizeVector& order, size_t axis) {
 }
 
 void Concat::initOptimalPrimitiveDescriptor() {
+    if (useACL) return;
     auto selected_pd = getSelectedPrimitiveDescriptor();
     if (selected_pd == nullptr)
         IE_THROW() << "Preferable primitive descriptor is not set.";

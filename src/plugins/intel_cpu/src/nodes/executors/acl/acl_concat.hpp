@@ -6,6 +6,7 @@
 
 #include "nodes/executors/concat.hpp"
 #include "arm_compute/runtime/NEON/NEFunctions.h"
+#include "utils/debug_capabilities.h"
 
 namespace ov {
 namespace intel_cpu {
@@ -32,7 +33,6 @@ private:
 
     arm_compute::Tensor srcTensor;
     std::vector<const arm_compute::ITensor*> srcTensorVectorConst;
-    std::vector<arm_compute::ITensor*> srcTensorVector;
     arm_compute::Tensor dstTensor;
     std::unique_ptr<arm_compute::NECopy> concatNECopy = nullptr;
     std::unique_ptr<arm_compute::NEConcatenateLayer> concatNEConcatenate = nullptr;
@@ -46,19 +46,29 @@ public:
     bool isSupported(const ConcatAttrs& concatAttrs,
                      const std::vector<MemoryDescPtr>& srcDescs,
                      const std::vector<MemoryDescPtr>& dstDescs) const override {
-        /*if (matmulAttrs.transposeA || matmulAttrs.transposeB || matmulAttrs.withBias)
-            return false;
-
-        if (srcDescs[0]->getPrecision() != InferenceEngine::Precision::FP32 ||
-            srcDescs[1]->getPrecision() != InferenceEngine::Precision::FP32 ||
-            dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP32)
-            return false;
-
-        if (!srcDescs[0]->hasLayoutType(LayoutType::ncsp) ||
-            !srcDescs[1]->hasLayoutType(LayoutType::ncsp) ||
-            !dstDescs[0]->hasLayoutType(LayoutType::ncsp))
-            return false;*/
-
+        if (srcDescs.size() > 1) {
+            std::cout << "AclConcatExecutorBuilder::isSupported - srcDescs.size() > 1" << std::endl;
+            bool areAllsrcDescsFP32 = true;
+            bool areAllsrcDescsFP16 = true;
+            std::string listSrcDescs;
+            for (int i = 0; i < srcDescs.size(); i++) {
+                if (srcDescs[i]->getPrecision() != InferenceEngine::Precision::FP32) {
+                    areAllsrcDescsFP32 = false;
+                }
+                if (srcDescs[i]->getPrecision() != InferenceEngine::Precision::FP16) {
+                    areAllsrcDescsFP16 = false;
+                }
+                listSrcDescs += " src[" + std::to_string(i) + "]=" + srcDescs[i]->getPrecision().name();
+            }
+            if ((!areAllsrcDescsFP32 && dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP32) &&
+                (!areAllsrcDescsFP16 && dstDescs[0]->getPrecision() != InferenceEngine::Precision::FP16)) {
+                    DEBUG_LOG("AclConcatExecutor does not support precisions:" + listSrcDescs + " dst: " + dstDescs[0]->getPrecision().name());
+                    return false;
+            }
+            std::cout << "return true, precisions: " << listSrcDescs << " dst: " << dstDescs[0]->getPrecision() << std::endl;
+        } else {
+            std::cout << "AclConcatExecutorBuilder::isSupported - srcDescs.size() == 1 return true" << std::endl;
+        }
         return true;
     }
 

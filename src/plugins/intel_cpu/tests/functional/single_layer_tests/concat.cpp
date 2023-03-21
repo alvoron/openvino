@@ -114,12 +114,16 @@ const auto blocked16_5D = CPUSpecificParams{{nCdhw16c}, {nCdhw16c}, {}, "unknown
 const auto blocked16_4D_ref = CPUSpecificParams{{nChw16c}, {nChw16c}, {}, "ref"};
 const auto blocked16_5D_ref = CPUSpecificParams{{nCdhw16c}, {nCdhw16c}, {}, "ref"};
 
-// List of precisions natively supported by onednn.
 const std::vector<ElementType> netPrecisions = {
+#if defined(OPENVINO_ARCH_X86_64)
         ElementType::i8,
         ElementType::i32,
-        ElementType::f32,
-        ElementType::bf16
+        ElementType::bf16,
+#endif
+#if defined(OPENVINO_ARCH_ARM64)
+        ElementType::f16,
+#endif
+        ElementType::f32
 };
 
 INSTANTIATE_TEST_SUITE_P(smoke_Concat4D_CPU_Block8_static, ConcatLayerCPUTest,

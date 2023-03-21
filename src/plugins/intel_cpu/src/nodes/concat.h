@@ -37,7 +37,6 @@ public:
     void prepareParams() override;
 
 private:
-    size_t axis = 0;
     size_t reorderedAxis = 0;
     bool canBeInPlace = false;
     bool canOptimizeNspc = false;
@@ -54,6 +53,7 @@ private:
     bool canExecRef = false;
     static constexpr size_t MAX_RANK_REF = 6;
 
+    bool useACL = false;
     ConcatAttrs concatAttrs;
     std::shared_ptr<ConcatExecutor> execPtr = nullptr;
 };

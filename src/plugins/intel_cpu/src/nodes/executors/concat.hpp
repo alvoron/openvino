@@ -12,7 +12,7 @@ namespace ov {
 namespace intel_cpu {
 
 struct ConcatAttrs {
-    size_t axis;
+    size_t axis = 0;
 };
 
 class ConcatExecutor {

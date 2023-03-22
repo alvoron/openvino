@@ -32,6 +32,7 @@ namespace ov {
 namespace intel_cpu {
 namespace node {
 
+#if defined(OPENVINO_ARCH_X86_64)
 #define GET_OFF(field) offsetof(jit_topk_call_args, field)
 
 #define vmm_mask    Vmm(0)
@@ -1787,6 +1788,7 @@ private:
         }
     }
 };
+#endif
 
 bool TopK::isSupportedOperation(const std::shared_ptr<const ngraph::Node>& op, std::string& errorMessage) noexcept {
     try {
@@ -1888,7 +1890,11 @@ void TopK::initSupportedPrimitiveDescriptors() {
         impl_type = impl_desc_type::ref;
     }
 
+#if defined(OPENVINO_ARCH_X86_64)
     jit_mode = mayiuse(cpu::x64::sse41);
+#else
+    jit_mode = false;
+#endif
 
     static const Precision supportedPrecision[] = {
         Precision::FP32,
@@ -2090,7 +2096,7 @@ void TopK::createPrimitive() {
                 calc_bitonic_idx(top_k, jcp.bitonic_k_idx_cnt, false);
             }
         }
-
+#if defined(OPENVINO_ARCH_X86_64)
         if (mayiuse(cpu::x64::avx512_core)) {
             topk_kernel.reset(new jit_uni_topk_kernel_f32<cpu::x64::avx512_core>(jcp));
         } else if (mayiuse(cpu::x64::avx2)) {
@@ -2101,6 +2107,7 @@ void TopK::createPrimitive() {
 
         if (topk_kernel)
             topk_kernel->create_ker();
+#endif
     }
 }
 

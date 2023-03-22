@@ -52,6 +52,7 @@ public:
     static std::string query_impl_info_str(const const_dnnl_primitive_desc_t& pd);
 
     static dnnl::algorithm convertToDnnlAlgorithm(Algorithm alg);
+    static bool isUnarySupportedAsPostOp(Algorithm alg);
 };
 
 }   // namespace intel_cpu

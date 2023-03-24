@@ -164,6 +164,7 @@ Node::NodesFactory::NodesFactory()
     INTEL_CPU_NODE(OneHot, Type::OneHot);
     INTEL_CPU_NODE(ExperimentalDetectronDetectionOutput, Type::ExperimentalDetectronDetectionOutput);
     INTEL_CPU_NODE(Deconvolution, Type::Deconvolution);
+    INTEL_CPU_NODE(DeformableConvolution, Type::DeformableConvolution);
     INTEL_CPU_NODE(Range, Type::Range);
     INTEL_CPU_NODE(StridedSlice, Type::StridedSlice);
     INTEL_CPU_NODE(GRN, Type::GRN);
@@ -181,7 +182,6 @@ Node::NodesFactory::NodesFactory()
     INTEL_CPU_NODE(Proposal, Type::Proposal);
 #if defined(OPENVINO_ARCH_X86_64)
     INTEL_CPU_NODE(GridSample, Type::GridSample);
-    INTEL_CPU_NODE(DeformableConvolution, Type::DeformableConvolution);
     INTEL_CPU_NODE(DepthToSpace, Type::DepthToSpace);
     INTEL_CPU_NODE(DFT, Type::DFT);
     INTEL_CPU_NODE(RDFT, Type::RDFT);

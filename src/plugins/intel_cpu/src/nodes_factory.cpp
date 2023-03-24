@@ -179,12 +179,12 @@ Node::NodesFactory::NodesFactory()
     INTEL_CPU_NODE(ROIPooling, Type::ROIPooling);
     INTEL_CPU_NODE(TopK, Type::TopK);
     INTEL_CPU_NODE(Proposal, Type::Proposal);
+    INTEL_CPU_NODE(RDFT, Type::RDFT);
 #if defined(OPENVINO_ARCH_X86_64)
     INTEL_CPU_NODE(GridSample, Type::GridSample);
     INTEL_CPU_NODE(DeformableConvolution, Type::DeformableConvolution);
     INTEL_CPU_NODE(DepthToSpace, Type::DepthToSpace);
     INTEL_CPU_NODE(DFT, Type::DFT);
-    INTEL_CPU_NODE(RDFT, Type::RDFT);
     INTEL_CPU_NODE(ColorConvert, Type::ColorConvert);
     INTEL_CPU_NODE(NormalizeL2, Type::NormalizeL2);
     INTEL_CPU_NODE(BinaryConvolution, Type::BinaryConvolution);

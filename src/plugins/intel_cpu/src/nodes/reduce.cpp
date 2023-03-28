@@ -222,9 +222,10 @@ void Reduce::initSupportedPrimitiveDescriptors() {
             }
         }
     }
-#if defined(OV_CPU_WITH_ACL)
-    pushDesc(LayoutType::nspc, LayoutType::nspc, InferenceEngine::Precision::FP32, InferenceEngine::Precision::FP32);
-#endif
+// TODO: Per-channel layout is disabled due to accuracy issue in ACL Reduce Executor
+// #if defined(OV_CPU_WITH_ACL)
+//     pushDesc(LayoutType::nspc, LayoutType::nspc, InferenceEngine::Precision::FP32, InferenceEngine::Precision::FP32);
+// #endif
     pushDesc(LayoutType::ncsp, LayoutType::ncsp, InferenceEngine::Precision::FP32, InferenceEngine::Precision::FP32);
 }
 

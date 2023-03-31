@@ -113,7 +113,9 @@ private:
 class JitEltwiseExecutorBuilder : public EltwiseExecutorBuilder {
 public:
     bool isSupported(const EltwiseAttrs& eltwiseAttrs, const std::vector<MemoryDescPtr>& srcDescs, const std::vector<MemoryDescPtr>& dstDescs) const override {
-        if (eltwiseAttrs.algorithm == Algorithm::EltwiseLog) return false;
+        // TODO: provide full list of supported algorithms
+        if (eltwiseAttrs.algorithm == Algorithm::EltwiseLog)
+            return false;
         return dnnl::impl::cpu::x64::mayiuse(dnnl::impl::cpu::x64::sse41);
     }
 

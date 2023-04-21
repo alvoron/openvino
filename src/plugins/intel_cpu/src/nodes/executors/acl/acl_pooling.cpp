@@ -42,7 +42,7 @@ bool AclPoolingExecutor::isSupported(const TensorInfo& srcTensorInfo,
         DEBUG_LOG("Unknown pooling algorithm: ", static_cast<int>(poolingAttrs.algorithm));
         return false;
     }
-    DimensionRoundingType round = (poolingAttrs.rounding == op::RoundingType::CEIL) ?
+    DimensionRoundingType round = (poolingAttrs.rounding == op::RoundingType::FLOOR) ?
                                    DimensionRoundingType::CEIL : DimensionRoundingType::FLOOR;
 
     if (srcDimsSize == 5) {

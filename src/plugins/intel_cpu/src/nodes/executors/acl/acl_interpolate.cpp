@@ -110,17 +110,21 @@ bool ov::intel_cpu::ACLInterpolateExecutorBuilder::isSupportedConfiguration(
     auto& out_shape = dstDescs[0]->getShape().getDims();
 
     int index_h, index_w;
-    if (!getIndices(srcDescs[0], index_h, index_w)) { return false; }
+    if (!getIndices(srcDescs[0], index_h, index_w)) { std::cout << "isSupportedConfiguration - exit 1" << std::endl; return false; }
 
     float scale_h = static_cast<float>(out_shape[index_h]) / inp_shape[index_h];
     float scale_w = static_cast<float>(out_shape[index_w]) / inp_shape[index_w];
     bool is_upsample = scale_h > 1 && scale_w > 1;
+    std::cout << "scale_h = " << scale_h << " ( " << static_cast<float>(out_shape[index_h]) << " / " << inp_shape[index_h] << " )" << std::endl;
+    std::cout << "scale_w = " << scale_w << " ( " << static_cast<float>(out_shape[index_w]) << " / " << inp_shape[index_w] << " )" << std::endl;
+    std::cout << "(isSupportedConfiguration) is_upsample = " << is_upsample << std::endl;
 
     auto& coord_mode = interpolateAttrs.coordTransMode;
     auto& nearest_mode = interpolateAttrs.nearestMode;
 
     if (coord_mode == InterpolateCoordTransMode::asymmetric &&
         nearest_mode == InterpolateNearestMode::floor) {
+            if (!is_upsample) std::cout << "isSupportedConfiguration - exit 3 (upsample is false)" << std::endl;
         return is_upsample;
     }
 
@@ -131,6 +135,7 @@ bool ov::intel_cpu::ACLInterpolateExecutorBuilder::isSupportedConfiguration(
 
     if (coord_mode == InterpolateCoordTransMode::half_pixel &&
         (nearest_mode == InterpolateNearestMode::simple || nearest_mode == InterpolateNearestMode::round_prefer_ceil)) {
+             std::cout << "isSupportedConfiguration - exit 2" << std::endl;
         return false;
     }
 
@@ -161,6 +166,7 @@ bool ov::intel_cpu::ACLInterpolateExecutorBuilder::isSupportedConfiguration(
             return true;
         }
     }
+    std::cout << "isSupportedConfiguration - exit 3" << std::endl;
     return false;
 }
 
@@ -168,6 +174,7 @@ bool ov::intel_cpu::ACLInterpolateExecutorBuilder::isSupported(const ov::intel_c
                                                                const std::vector<MemoryDescPtr> &srcDescs,
                                                                const std::vector<MemoryDescPtr> &dstDescs) const {
     if (srcDescs[0]->getShape().getDims().size() != 4u) {
+        std::cout << "isSupported - exit 1" << std::endl;
         return false;
     }
 
@@ -176,27 +183,32 @@ bool ov::intel_cpu::ACLInterpolateExecutorBuilder::isSupported(const ov::intel_c
 
     if (!std::all_of(pads_begin.begin(), pads_begin.end(), [](int i){return i == 0;}) ||
         !std::all_of(pads_end.begin(), pads_end.end(), [](int i){return i == 0;})) {
+        std::cout << "isSupported - exit 2" << std::endl;
         return false;
     }
 
     if (interpolateAttrs.antialias ||
         interpolateAttrs.coordTransMode == InterpolateCoordTransMode::tf_half_pixel_for_nn ||
         interpolateAttrs.nearestMode == InterpolateNearestMode::ceil) {
+        std::cout << "isSupported - exit 3" << std::endl;
         return false;
     }
 
     if (interpolateAttrs.mode == InterpolateMode::cubic ||
         interpolateAttrs.mode == InterpolateMode::bilinear_pillow ||
         interpolateAttrs.mode == InterpolateMode::bicubic_pillow) {
+        std::cout << "isSupported - exit 4" << std::endl;
         return false;
     }
 
     if (interpolateAttrs.mode == InterpolateMode::nearest &&
         !isSupportedConfiguration(interpolateAttrs, srcDescs, dstDescs)) {
+        std::cout << "isSupported - exit 5" << std::endl;
         return false;
     }
 
     if (interpolateAttrs.coordTransMode == InterpolateCoordTransMode::pytorch_half_pixel) {
+        std::cout << "isSupported - exit 6" << std::endl;
         return false;
     }
     return true;

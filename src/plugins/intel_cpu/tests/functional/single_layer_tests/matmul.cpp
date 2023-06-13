@@ -197,6 +197,7 @@ TEST_P(MatMulLayerCPUTest, CompareWithRefs) {
             auto primType = getExecValue(ExecGraphInfoSerialization::IMPL_TYPE);
             if (primType.find("gemm_mlas") != std::string::npos) {
                 useMlas = true;
+                std::cout << "WE ARE USING MLAS!" << std::endl;
             }
         }
     }

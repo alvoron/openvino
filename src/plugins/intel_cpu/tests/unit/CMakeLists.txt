@@ -22,6 +22,7 @@ if (NOT OPENVINO_ARCH_X86_64)
                                           ${CMAKE_CURRENT_SOURCE_DIR}/nodes/eltwise_node_test.cpp)
 endif()
 
+set(ENABLE_MLAS ON)
 if (NOT ENABLE_MLAS)
     set(MLAS_LIBRARY "")
     set(EXCLUDED_SOURCE_PATHS_FOR_NON_MLAS ${CMAKE_CURRENT_SOURCE_DIR}/gemm_api_test.cpp)

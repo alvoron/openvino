@@ -47,6 +47,7 @@ public:
     void configure_model() override;
 
 protected:
+    InputShape dataShape;
     std::vector<std::vector<float>> scales;
     std::vector<std::vector<int32_t>> sizes;
     ov::op::v4::Interpolate::ShapeCalcMode shapeCalcMode;

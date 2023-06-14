@@ -150,7 +150,7 @@ void InterpolateLayerCPUTest::SetUp() {
 
     std::tie(mode, transfMode, nearMode, antiAlias, padBegin, padEnd, cubeCoef) = specificParams;
 
-    InputShape dataShape;
+    //InputShape dataShape;
     //ngraph::helpers::InputLayerType shapeInputType;
     std::vector<std::vector<float>> shapeDataForInput;
     std::vector<int64_t> axes;
@@ -311,6 +311,12 @@ void InterpolateLayerCPUTest::SetUp() {
 
 bool InterpolateLayerCPUTest::isACLSupported(std::shared_ptr<ov::op::v0::Parameter> params) {
     float scale_h, scale_w;
+    size_t targetStaticShapeSize = dataShape.second.size();
+    std::cout << "(isACLsupported) targetStaticShapeSize = " << targetStaticShapeSize << std::endl;
+    /*if (targetStaticShapeSize != 4) {
+        std::cout << "isACLsupported - false - exit 1" << std::endl;
+        return false;
+    }*/
     //if (shapeInputType != ngraph::helpers::InputLayerType::PARAMETER) {
         if (shapeCalcMode == ov::op::v11::Interpolate::ShapeCalcMode::SCALES) {
             std::cout << "SCALES: " << scales.front()[2] << std::endl;
@@ -333,7 +339,7 @@ bool InterpolateLayerCPUTest::isACLSupported(std::shared_ptr<ov::op::v0::Paramet
     //    scale_w = static_cast<float>(scales.front()[3]);
     //}
     bool is_upsample = scale_h > 1 && scale_w > 1;
-    std::cout << "(SetUp) is_upsample = " << is_upsample << std::endl;
+    std::cout << "(isACLsupported) is_upsample = " << is_upsample << std::endl;
 
     if (!std::all_of(padBegin.begin(), padBegin.end(), [](int i){return i == 0;}) ||
         !std::all_of(padEnd.begin(), padEnd.end(), [](int i){return i == 0;})) {

@@ -173,6 +173,7 @@ bool ov::intel_cpu::ACLInterpolateExecutorBuilder::isSupportedConfiguration(
 bool ov::intel_cpu::ACLInterpolateExecutorBuilder::isSupported(const ov::intel_cpu::InterpolateAttrs &interpolateAttrs,
                                                                const std::vector<MemoryDescPtr> &srcDescs,
                                                                const std::vector<MemoryDescPtr> &dstDescs) const {
+    std::cout << "isSupported - srcDescs[0]->getShape().getDims().size():" << srcDescs[0]->getShape().getDims().size() << std::endl;
     if (srcDescs[0]->getShape().getDims().size() != 4u) {
         std::cout << "isSupported - exit 1" << std::endl;
         return false;

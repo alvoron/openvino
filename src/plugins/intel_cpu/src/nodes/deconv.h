@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include "common/dnnl_executor.h"
+#include "executors/deconv_list.hpp"
 
 namespace ov {
 namespace intel_cpu {
@@ -20,6 +21,7 @@ public:
     Deconvolution(const std::shared_ptr<ngraph::Node>& op, const GraphContext::CPtr context);
 
     void getSupportedDescriptors() override;
+    void initSupportedPrimitiveDescriptors() override;
     void createDescriptor(const std::vector<MemoryDescPtr>& inputDesc,
                           const std::vector<MemoryDescPtr>& outputDesc) override;
     void createPrimitive() override;
@@ -41,7 +43,7 @@ public:
     bool canFuse(const NodePtr& node) const override;
 
     const VectorDims& getWeightDims() const { return getInputShapeAtPort(1).getStaticDims(); }
-    const std::vector<ptrdiff_t>& getStride() const { return stride; }
+    const std::vector<ptrdiff_t>& getStride() const { return deconvAttrs.stride; }
 
     void prepareParams() override;
     void execute(dnnl::stream strm) override;
@@ -59,6 +61,7 @@ protected:
 private:
     using executorPtr = std::shared_ptr<DnnlExecutor>;
     executorPtr execPtr = nullptr;
+    std::shared_ptr<DeconvExecutor> execPtrDeconv = nullptr;
 
     class DeconvExecutorDefault : public DnnlExecutor {
         public:
@@ -81,7 +84,9 @@ private:
     // since backward one uses the reference to it as a hint
     std::vector<dnnl::convolution_forward::primitive_desc> fwdConvPD;
 
-    bool withGroups = false;
+    bool useACL = false;
+    DeconvAttrs deconvAttrs;
+    /*bool withGroups = false;
     bool isDW = false;
     bool isInt8 = false;
     bool autoPad = false;
@@ -97,7 +102,7 @@ private:
     ov::CoordinateDiff outputPadding;
     std::vector<int32_t> lastOutputSpatialDims;
     VectorDims int8WeightDims;
-    VectorDims biasesDims;
+    VectorDims biasesDims;*/
 
     Shape inShape;
 
@@ -112,7 +117,7 @@ private:
     void initPaddingR(const Shape &inShape, const Shape &outShape);
     std::vector<int32_t> readOutputSpatialDims() const;
     std::pair<VectorDims, VectorDims> makeDummyInOutShape();
-    bool withBiases = false;
+    //bool withBiases = false;
     size_t biasPort;
 
     std::string errorPrefix;

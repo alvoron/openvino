@@ -442,7 +442,10 @@ std::vector<CPUSpecificParams> filterCPUInfoForDevice(const std::vector<CPUSpeci
             continue;
         if (selectedTypeStr.find("amx") != std::string::npos && !InferenceEngine::with_cpu_x86_avx512_core_amx())
             continue;
-
+#if defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64)
+        if (selectedTypeStr.find("acl") != std::string::npos)
+            continue;
+#endif
         resCPUParams.push_back(param);
     }
 

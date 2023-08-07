@@ -38,7 +38,7 @@ include(cmake/dependencies.cmake)
 if(ENABLE_COVERAGE)
     include(cmake/coverage.cmake)
 endif()
-
+set(ENABLE_SYSTEM_TBB ON)
 # resolving dependencies for the project
 message (STATUS "CMAKE_VERSION ......................... " ${CMAKE_VERSION})
 message (STATUS "OpenVINO_SOURCE_DIR ................... " ${OpenVINO_SOURCE_DIR})

@@ -2165,6 +2165,18 @@ void Eltwise::initSupportedPrimitiveDescriptors() {
         supportedPrimitiveDescriptors.emplace_back(planarDesc);
 
     canUseAclExecutor = !supportedPrimitiveDescriptors.empty();
+    auto nodeName = getName();
+    std::vector<std::string> refNodeNames = {
+"efficientnet-b0/blocks_1/mul", //invalid (26.62) input [1,96,256,256]
+"efficientnet-b0/blocks_1/mul_1", //invalid (11.85) input [1,96,128,128]
+"efficientnet-b0/blocks_2/mul_1", //invalid (37.79) input [1,144,128,128]
+      };
+    //std::cout << "Eltwise node name: " << nodeName << std::endl;
+    for (std::string refNodeName : refNodeNames) {
+        if (nodeName.compare(refNodeName) == 0) {
+            canUseAclExecutor = false;
+        }
+    }
     if (canUseAclExecutor)
         return;
 #endif

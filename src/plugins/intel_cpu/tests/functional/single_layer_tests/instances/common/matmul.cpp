@@ -335,6 +335,7 @@ const auto testParamsDynamic_nightly = ::testing::Combine(matMulParamsDynamic_ni
 INSTANTIATE_TEST_SUITE_P(nightly_MM_Dynamic, MatMulLayerCPUTest, testParamsDynamic_nightly, MatMulLayerCPUTest::getTestCaseName);
 
 } // namespace matmul
+
 const std::vector<ShapeRelatedParams> IS2D_Brgemm_smoke = {
     // needed by 'IS2D_Brgconv1x1_smoke'
     {static_shapes_to_test_representation({{1, 120}, {120, 120}}), {true, false}},
@@ -735,7 +736,6 @@ const std::vector<ShapeRelatedParams> IS2D_Brgemm_Amx_smoke = {
     },
 };
 
-<<<<<<<< HEAD:src/plugins/intel_cpu/tests/functional/single_layer_tests/instances/x64/matmul.cpp
 std::vector<CPUSpecificParams> filterSpecificParams_Brgconv1x1() {
     std::vector<CPUSpecificParams> specificParams;
     if (with_cpu_x86_avx512_core()) {

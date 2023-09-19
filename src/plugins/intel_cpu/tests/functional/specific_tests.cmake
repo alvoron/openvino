@@ -48,7 +48,7 @@ elseif(ARM OR AARCH64)
     ${CMAKE_CURRENT_SOURCE_DIR}/test_utils/arm/filter_cpu_info.cpp)
 endif()
 
-  ov_add_test_target(
+ov_add_test_target(
     NAME ${SUBSET_TARGET_NAME}
     ROOT ${CMAKE_CURRENT_SOURCE_DIR}
     INCLUDES ${INCLUDES}

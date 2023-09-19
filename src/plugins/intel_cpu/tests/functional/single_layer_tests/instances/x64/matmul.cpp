@@ -5,6 +5,7 @@
 #include "single_layer_tests/classes/matmul.hpp"
 #include "shared_test_classes/single_layer/mat_mul.hpp"
 #include "test_utils/cpu_test_utils.hpp"
+<<<<<<< HEAD
 <<<<<<<< HEAD:src/plugins/intel_cpu/tests/functional/single_layer_tests/instances/x64/matmul.cpp
 #include "test_utils/filter_cpu_info.hpp"
 ========
@@ -12,6 +13,10 @@
 #include "test_utils/fusing_test_utils.hpp"
 #include "ov_models/builders.hpp"
 #include <string>
+=======
+#include "test_utils/filter_cpu_info.hpp"
+#include "test_utils/fusing_test_utils.hpp"
+>>>>>>> 4d1bb63c62 (address comments)
 
 using namespace InferenceEngine;
 using namespace CPUTestUtils;
@@ -121,6 +126,7 @@ std::vector<std::map<std::string, std::string>> filterAdditionalConfig_Brgemm() 
     return additionalConfig;
 }
 
+<<<<<<< HEAD
 <<<<<<<< HEAD:src/plugins/intel_cpu/tests/functional/single_layer_tests/instances/x64/matmul.cpp
 ========
 std::vector<std::map<std::string, std::string>> filterAdditionalConfig_BrgemmAmx() {
@@ -148,6 +154,8 @@ std::vector<CPUSpecificParams> filterSpecificParams() {
 }
 
 >>>>>>>> 947fabb76b (init):src/plugins/intel_cpu/tests/functional/single_layer_tests/instances/common/matmul.cpp
+=======
+>>>>>>> 4d1bb63c62 (address comments)
 //For FP32 precision, FC has brgemm avx2 support but Matmul doen't have brgemm avx2.
 //Need to specify tryBrgAVX2 based on test case.
 std::vector<CPUSpecificParams> filterSpecificParams_Brgemm(bool tryBrgAVX2 = false) {
@@ -161,6 +169,7 @@ std::vector<CPUSpecificParams> filterSpecificParams_Brgemm(bool tryBrgAVX2 = fal
     return specificParams;
 }
 
+<<<<<<< HEAD
 <<<<<<<< HEAD:src/plugins/intel_cpu/tests/functional/single_layer_tests/instances/x64/matmul.cpp
 ========
 std::vector<CPUSpecificParams> filterSpecificParams_BrgemmAmx() {
@@ -545,6 +554,8 @@ INSTANTIATE_TEST_SUITE_P(nightly_FC_3D, MatMulLayerCPUTest, testParams3D_nightly
 INSTANTIATE_TEST_SUITE_P(nightly_FC_3D_BF16, MatMulLayerCPUTest, testParams3DBF16_nightly, MatMulLayerCPUTest::getTestCaseName);
 
 >>>>>>>> 947fabb76b (init):src/plugins/intel_cpu/tests/functional/single_layer_tests/instances/common/matmul.cpp
+=======
+>>>>>>> 4d1bb63c62 (address comments)
 const std::vector<ShapeRelatedParams> IS2D_Brgemm_smoke = {
     // needed by 'IS2D_Brgconv1x1_smoke'
     {static_shapes_to_test_representation({{1, 120}, {120, 120}}), {true, false}},
@@ -945,7 +956,10 @@ const std::vector<ShapeRelatedParams> IS2D_Brgemm_Amx_smoke = {
     },
 };
 
+<<<<<<< HEAD
 <<<<<<<< HEAD:src/plugins/intel_cpu/tests/functional/single_layer_tests/instances/x64/matmul.cpp
+=======
+>>>>>>> 4d1bb63c62 (address comments)
 std::vector<CPUSpecificParams> filterSpecificParams_Brgconv1x1() {
     std::vector<CPUSpecificParams> specificParams;
     if (with_cpu_x86_avx512_core()) {
@@ -1216,8 +1230,11 @@ const auto testParams3D_nightly = ::testing::Combine(fullyConnectedParams3D_nigh
 
 INSTANTIATE_TEST_SUITE_P(nightly_FC_3D, MatMulLayerCPUTest, testParams3D_nightly, MatMulLayerCPUTest::getTestCaseName);
 } // namespace
+<<<<<<< HEAD
 ========
 } // namespace matmul
 >>>>>>>> 947fabb76b (init):src/plugins/intel_cpu/tests/functional/single_layer_tests/instances/common/matmul.cpp
+=======
+>>>>>>> 4d1bb63c62 (address comments)
 } // namespace MatMul
 } // namespace CPULayerTestsDefinitions

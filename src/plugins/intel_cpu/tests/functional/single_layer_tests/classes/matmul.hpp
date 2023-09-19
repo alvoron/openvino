@@ -8,7 +8,7 @@
 #include "shared_test_classes/base/ov_subgraph.hpp"
 #include "ie_precision.hpp"
 #include "test_utils/fusing_test_utils.hpp"
-#include "ngraph_functions/builders.hpp"
+#include "ov_models/builders.hpp"
 
 using namespace ngraph;
 using namespace InferenceEngine;
@@ -56,4 +56,14 @@ protected:
     void SetUp() override;
 };
 
+namespace MatMul {
+   const std::vector<ElementType>& netPRCs();
+   const std::vector<fusingSpecificParams>& matmulFusingParams();
+   const std::vector<std::map<std::string, std::string>>& additionalConfig();
+   const std::map<std::string, std::string>& emptyAdditionalConfig();
+   const std::vector<CPUSpecificParams>& filterSpecificParams();
+   const std::vector<ShapeRelatedParams>& IS2D_nightly();
+   const std::vector<ShapeRelatedParams>& IS2D_smoke();
+   const std::vector<ShapeRelatedParams>& IS3D_smoke();
+} // namespace MatMul
 } // namespace CPULayerTestsDefinitions

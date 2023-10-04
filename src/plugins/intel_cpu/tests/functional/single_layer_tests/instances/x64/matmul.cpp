@@ -7,6 +7,8 @@
 #include "test_utils/cpu_test_utils.hpp"
 #include "test_utils/filter_cpu_info.hpp"
 #include "test_utils/fusing_test_utils.hpp"
+#include "ov_models/builders.hpp"
+#include <string>
 
 using namespace InferenceEngine;
 using namespace CPUTestUtils;

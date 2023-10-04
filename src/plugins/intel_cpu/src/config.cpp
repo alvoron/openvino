@@ -253,6 +253,7 @@ void Config::readProperties(const std::map<std::string, std::string> &prop, Mode
             inferencePrecision = ov::element::f32;
         }
     }
+    inferencePrecision = ov::element::f16;
 
     if (!prop.empty())
         _config.clear();

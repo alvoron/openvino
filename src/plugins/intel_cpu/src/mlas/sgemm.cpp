@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "sgemm.hpp"
-
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -10,6 +10,7 @@
 #include "onednn/dnnl.h"
 #include "openvino/core/parallel.hpp"
 #include "thread_pool.hpp"
+#include "thread_utils.h"
 
 namespace ov {
 namespace intel_cpu {
@@ -54,8 +55,12 @@ void mlas_sgemm(const char* transa,
     sgemmParam.beta = beta;
     auto _transa = *transa == 'N' ? CblasNoTrans : CblasTrans;
     auto _transb = *transb == 'N' ? CblasNoTrans : CblasTrans;
-    ov::cpu::OVMlasThreadPool threadPool(0 == thread_num ? parallel_get_max_threads() : thread_num);
-    MlasGemmBatch(_transa, _transb, M, N, K, &sgemmParam, 1, &threadPool);
+    //ov::cpu::OVMlasThreadPool threadPool(0 == thread_num ? parallel_get_max_threads() : thread_num);
+        OrtThreadPoolParams tpo;
+    tpo.auto_set_affinity = true;
+    std::unique_ptr<onnxruntime::concurrency::ThreadPool> tp(
+      onnxruntime::concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, onnxruntime::concurrency::ThreadPoolType::INTRA_OP));
+    MlasGemmBatch(_transa, _transb, M, N, K, &sgemmParam, 1, tp.get());
 }
 
 void mlas_sgemm_compute(const char* transa,
@@ -74,7 +79,11 @@ void mlas_sgemm_compute(const char* transa,
                         const float* bias,
                         size_t thread_num) {
     // C = alpha*op( A )op( B ) + beta * C
-    ov::cpu::OVMlasThreadPool threadPool(0 == thread_num ? parallel_get_max_threads() : thread_num);
+    //ov::cpu::OVMlasThreadPool threadPool(0 == thread_num ? parallel_get_max_threads() : thread_num);
+    OrtThreadPoolParams tpo;
+    tpo.auto_set_affinity = true;
+    std::unique_ptr<onnxruntime::concurrency::ThreadPool> tp(
+      onnxruntime::concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, onnxruntime::concurrency::ThreadPoolType::INTRA_OP));
     MLAS_SGEMM_DATA_PARAMS sgemmParam;
     sgemmParam.BIsPacked = true;
     sgemmParam.A = A;
@@ -88,7 +97,11 @@ void mlas_sgemm_compute(const char* transa,
     sgemmParam.bias = bias;
     auto _transa = *transa == 'N' ? CblasNoTrans : CblasTrans;
     auto _transb = *transb == 'N' ? CblasNoTrans : CblasTrans;
-    MlasGemmBatch(_transa, _transb, M, N, K, &sgemmParam, 1, &threadPool);
+    //std::cout << _transa << " " << _transb
+    //<< " " << M << " " << N << " " << K
+    //<< " " << lda << " " << ldb << " " << ldc << std::endl;
+
+    MlasGemmBatch(_transa, _transb, M, N, K, &sgemmParam, 1, tp.get());
 }
 }  // namespace intel_cpu
 }  // namespace ov

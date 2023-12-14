@@ -247,7 +247,7 @@ void FullyConnected::getSupportedDescriptors() {
 
     inDims = isDynamicNode() ? makeDummyInputDims() : getInputShapeAtPort(DATA_ID).getStaticDims();
     outDims = isDynamicNode() ? makeDummyOutputDims(inDims) : getOutputShapeAtPort(0).getStaticDims();
-#if defined(OV_CPU_WITH_MLAS) && (defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64))
+#if defined(OV_CPU_WITH_MLAS) //&& (defined(OPENVINO_ARCH_X86) || defined(OPENVINO_ARCH_X86_64))
     // MLAS doesn't support post-ops fusing and only supports FP32. INT8 is not enabled yet
     // Disable MLAS when FC could fuse post-ops
     useMlas = !useSparseWeights && !useWeightsDecompressionImpl &&
@@ -638,6 +638,8 @@ void FullyConnected::executeMLAS() {
     int64_t lda = K;
     int64_t ldb = K;
     int64_t ldc = N;
+    //std::cout << getName() << " " << M << " " << N << " " << K << " " << withBiases << std::endl;
+    //auto startTime = std::chrono::high_resolution_clock::now();
     mlas_sgemm_compute("N",
                        "N",
                        M,
@@ -652,6 +654,9 @@ void FullyConnected::executeMLAS() {
                        reinterpret_cast<float*>(dstMemPtr->getData()),
                        ldc,
                        withBiases ? reinterpret_cast<float*>(biasMemPtr->getData()) : nullptr);
+//std::cout << "time: " <<
+//    std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime).count()
+//    << std::endl;
 }
 
 #endif

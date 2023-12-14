@@ -49,7 +49,7 @@
 #    include "tbb/task_scheduler_observer.h"
 
 inline int parallel_get_max_threads() {
-    return tbb::this_task_arena::max_concurrency();
+    return tbb::this_task_arena::max_concurrency();//5;
 }
 inline int parallel_get_num_threads() {
     return parallel_get_max_threads();

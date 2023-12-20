@@ -15,7 +15,7 @@ size_t getCacheSizeMlas(int level, bool perCore) {
 namespace ov {
 namespace cpu {
 
-size_t OVMlasThreadPool::DegreeOfParallelism() {
+/*size_t OVMlasThreadPool::DegreeOfParallelism() {
     // threadpool nullptr means single threaded
     return threadNum;
 }
@@ -28,6 +28,6 @@ void OVMlasThreadPool::TrySimpleParallelFor(const std::ptrdiff_t total, const st
             fn(i);
         }
     });
-}
+}*/
 };  // namespace cpu
 };  // namespace ov

@@ -11,7 +11,7 @@
 
 namespace ov {
 namespace cpu {
-class OVMlasThreadPool : public IMlasThreadPool {
+/*class OVMlasThreadPool : public IMlasThreadPool {
 public:
     OVMlasThreadPool() = delete;
     explicit OVMlasThreadPool(const size_t& threadNum) : threadNum(threadNum) {}
@@ -20,6 +20,6 @@ public:
 public:
     // the actual threads used for sgemm
     size_t threadNum = 0;
-};
+};*/
 };  // namespace cpu
 };  // namespace ov

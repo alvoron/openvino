@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "core/util/thread_utils.h"
 
 namespace ov {
 namespace intel_cpu {
@@ -103,7 +104,8 @@ void mlas_sgemm_compute(const char* transa,
                         const float beta,
                         float* C,
                         const int64_t ldc,
-                        const float* bias = nullptr,
-                        size_t thread_num = 0);
+                        const float* bias,
+                        size_t thread_num,
+                        std::unique_ptr<onnxruntime::concurrency::ThreadPool> &tp);
 }  // namespace intel_cpu
 }  // namespace ov

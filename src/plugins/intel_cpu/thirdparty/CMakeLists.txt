@@ -136,6 +136,20 @@ endfunction()
 if(ENABLE_MLAS_FOR_CPU)
     add_subdirectory(mlas)
     ov_install_static_lib(mlas ${OV_CPACK_COMP_CORE})
+    target_include_directories(mlas
+        PUBLIC "/Users/devuser/avoron/onnxruntime/include"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/include/onnxruntime"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/include/onnxruntime/core/common"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/onnxruntime"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/onnxruntime/core/mlas/inc"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/_deps/gsl-src/include"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/_deps/eigen-src"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/_deps/abseil_cpp-src"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/_deps/google_nsync-src"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/_deps/google_nsync-src/public"
+        )
+#    add_subdirectory("/Users/devuser/avoron/onnxruntime" "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo")
+    ov_install_static_lib(onnxruntime ${OV_CPACK_COMP_CORE})
 endif()
 
 ov_add_onednn()

@@ -10,7 +10,6 @@
 #include "onednn/dnnl.h"
 #include "openvino/core/parallel.hpp"
 #include "thread_pool.hpp"
-#include "thread_utils.h"
 
 namespace ov {
 namespace intel_cpu {
@@ -27,6 +26,11 @@ void mlas_sgemm_pack(const char* transb,
                      float* dst) {
     MlasGemmPackB(*transb == 'T' ? CblasTrans : CblasNoTrans, N, K, src, ldb, dst);
 }
+
+OrtThreadPoolParams tpo;
+    //tpo.auto_set_affinity = true;
+    std::unique_ptr<onnxruntime::concurrency::ThreadPool> tp_new(
+      onnxruntime::concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, onnxruntime::concurrency::ThreadPoolType::INTRA_OP));
 
 void mlas_sgemm(const char* transa,
                 const char* transb,
@@ -58,9 +62,10 @@ void mlas_sgemm(const char* transa,
     //ov::cpu::OVMlasThreadPool threadPool(0 == thread_num ? parallel_get_max_threads() : thread_num);
         OrtThreadPoolParams tpo;
     tpo.auto_set_affinity = true;
-    std::unique_ptr<onnxruntime::concurrency::ThreadPool> tp(
+    /*std::unique_ptr<onnxruntime::concurrency::ThreadPool> tp(
       onnxruntime::concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, onnxruntime::concurrency::ThreadPoolType::INTRA_OP));
-    MlasGemmBatch(_transa, _transb, M, N, K, &sgemmParam, 1, tp.get());
+      std::cout << "DegreeOfParallelism: " << onnxruntime::concurrency::ThreadPool::DegreeOfParallelism(tp.get()) << std::endl;*/
+    MlasGemmBatch(_transa, _transb, M, N, K, &sgemmParam, 1, tp_new.get());
 }
 
 void mlas_sgemm_compute(const char* transa,
@@ -77,13 +82,14 @@ void mlas_sgemm_compute(const char* transa,
                         float* C,
                         const int64_t ldc,
                         const float* bias,
-                        size_t thread_num) {
+                        size_t thread_num,
+                        std::unique_ptr<onnxruntime::concurrency::ThreadPool> &tp) {
     // C = alpha*op( A )op( B ) + beta * C
     //ov::cpu::OVMlasThreadPool threadPool(0 == thread_num ? parallel_get_max_threads() : thread_num);
-    OrtThreadPoolParams tpo;
+    /*OrtThreadPoolParams tpo;
     tpo.auto_set_affinity = true;
     std::unique_ptr<onnxruntime::concurrency::ThreadPool> tp(
-      onnxruntime::concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, onnxruntime::concurrency::ThreadPoolType::INTRA_OP));
+      onnxruntime::concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, onnxruntime::concurrency::ThreadPoolType::INTRA_OP));*/
     MLAS_SGEMM_DATA_PARAMS sgemmParam;
     sgemmParam.BIsPacked = true;
     sgemmParam.A = A;
@@ -94,14 +100,15 @@ void mlas_sgemm_compute(const char* transa,
     sgemmParam.ldc = ldc;
     sgemmParam.alpha = alpha;
     sgemmParam.beta = beta;
-    sgemmParam.bias = bias;
+    //sgemmParam.bias = bias;
     auto _transa = *transa == 'N' ? CblasNoTrans : CblasTrans;
     auto _transb = *transb == 'N' ? CblasNoTrans : CblasTrans;
     //std::cout << _transa << " " << _transb
     //<< " " << M << " " << N << " " << K
     //<< " " << lda << " " << ldb << " " << ldc << std::endl;
-
-    MlasGemmBatch(_transa, _transb, M, N, K, &sgemmParam, 1, tp.get());
+    //std::cout << "mlas_sgemm_compute" << std::endl;
+    //std::cout << "DegreeOfParallelism: " << onnxruntime::concurrency::ThreadPool::DegreeOfParallelism(tp.get()) << std::endl;
+    MlasGemmBatch(_transa, _transb, M, N, K, &sgemmParam, 1, tp_new.get());
 }
 }  // namespace intel_cpu
 }  // namespace ov

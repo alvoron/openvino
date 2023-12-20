@@ -138,6 +138,25 @@ target_link_libraries(${TARGET_NAME} PRIVATE dnnl
 target_compile_definitions(${TARGET_NAME} PRIVATE IMPLEMENT_INFERENCE_EXTENSION_API)
 target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if (ENABLE_MLAS_FOR_CPU)
+    target_link_libraries(${TARGET_NAME} PRIVATE
+        "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/libonnxruntime_common.a"
+        "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/libonnxruntime_flatbuffers.a"
+        "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/libonnxruntime_framework.a"
+        "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/libonnxruntime_mocked_allocator.a"
+        "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/libonnxruntime_optimizer.a"
+        "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/libonnxruntime_session.a"
+        "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/libonnxruntime_test_utils.a"
+        "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/libonnxruntime_util.a"
+        "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/_deps/google_nsync-build/libnsync_cpp.a"
+        )
+    target_include_directories(${TARGET_NAME}
+        PUBLIC "/Users/devuser/avoron/onnxruntime/include"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/include/onnxruntime"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/include/onnxruntime/core/platform"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/onnxruntime"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/onnxruntime/core/mlas/inc"
+        PUBLIC "/Users/devuser/avoron/onnxruntime/build/MacOS/RelWithDebInfo/_deps/gsl-src/include"
+        )
     target_link_libraries(${TARGET_NAME} PRIVATE mlas)
     target_include_directories(${TARGET_NAME} SYSTEM PRIVATE $<TARGET_PROPERTY:mlas,INCLUDE_DIRECTORIES>)
     add_definitions(-DOV_CPU_WITH_MLAS)

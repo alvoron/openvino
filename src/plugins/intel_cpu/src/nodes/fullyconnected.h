@@ -12,6 +12,10 @@
 #include <vector>
 #include "common/dnnl_executor.h"
 
+#ifdef OV_CPU_WITH_MLAS
+#include "core/util/thread_utils.h"
+#endif
+
 namespace ov {
 namespace intel_cpu {
 namespace node {
@@ -113,6 +117,7 @@ private:
     MemoryPtr mlasPackedPtr = nullptr;
     void executeMLAS();
     void prepackMLASWeight();
+    std::unique_ptr<onnxruntime::concurrency::ThreadPool> tp;
 #endif
 #if defined(OV_CPU_WITH_ACL)
     void prepareWeightsUsingDummyShape();

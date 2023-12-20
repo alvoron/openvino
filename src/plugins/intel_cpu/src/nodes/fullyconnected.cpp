@@ -137,6 +137,9 @@ FullyConnected::FullyConnected(const std::shared_ptr<ov::Node>& op, const GraphC
         minSparseRate = context->getConfig().fcSparseWeiDecompressionRate;
 
     expectedBiasDims = {getInputShapeAtPort(WEIGHTS_ID).getStaticDims()[0]};
+    /*OrtThreadPoolParams tpo;
+    tpo.auto_set_affinity = true;
+    tp = onnxruntime::concurrency::CreateThreadPool(&onnxruntime::Env::Default(), tpo, onnxruntime::concurrency::ThreadPoolType::INTRA_OP);*/
 }
 
 std::vector<memory::format_tag> FullyConnected::getAvailableFormatsForDims(const Shape &dims) const {
@@ -653,7 +656,9 @@ void FullyConnected::executeMLAS() {
                        0.0f,
                        reinterpret_cast<float*>(dstMemPtr->getData()),
                        ldc,
-                       withBiases ? reinterpret_cast<float*>(biasMemPtr->getData()) : nullptr);
+                       withBiases ? reinterpret_cast<float*>(biasMemPtr->getData()) : nullptr,
+                       0,
+                       tp);
 //std::cout << "time: " <<
 //    std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime).count()
 //    << std::endl;

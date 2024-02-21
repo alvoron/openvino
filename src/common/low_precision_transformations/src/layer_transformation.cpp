@@ -22,6 +22,22 @@ namespace ov {
 namespace pass {
 namespace low_precision {
 
+const std::vector<element::Type>& precision_set::get_int8_support() {
+    static const std::vector<element::Type> int8_support = {
+        ov::element::u8,  ov::element::i8
+    };
+    return int8_support;
+}
+
+const std::vector<element::Type>& precision_set::get_int8_int16_int32_support() {
+    static const std::vector<element::Type> int8_int16_int32_support = {
+        ov::element::u8,  ov::element::i8,
+        ov::element::u16, ov::element::i16,
+        ov::element::u32, ov::element::i32
+    };
+    return int8_int16_int32_support;
+}
+
 constexpr char LayerTransformation::originalLayerPostfix[];
 
 LayerTransformation::LayerTransformation(const Params& params) :
@@ -111,11 +127,13 @@ bool LayerTransformation::canBeTransformedStatic(const std::shared_ptr<Node>& la
 
 bool LayerTransformation::canBeTransformedSpatialDimension(const TransformationContext& context, std::shared_ptr<Node> layer) const {
     if (!isQuantized(layer, defaultPrecisions)) {
+        OPENVINO_DEBUG << "LPT: early exit: not quantized";
         return false;
     }
     const auto outputs = layer->outputs();
     if (std::any_of(outputs.begin(), outputs.end(),
         [](const Output<Node>& out) { return out.get_partial_shape().rank().is_dynamic(); })) {
+        OPENVINO_DEBUG << "LPT: early exit: rank is dynamic";
         return false;
     }
     return true;
@@ -381,11 +399,11 @@ std::shared_ptr<ov::Node> LayerTransformation::moveDequantizationAfter(
     TransformationContext &context,
     const std::shared_ptr<ov::Node>& operation,
     const FakeQuantizeDequantization& dequantization,
-    const bool updatePrecision,
+    const bool updateOutputPrecision,
     const bool moveSubtract) const {
     const auto result = ov::pass::low_precision::NetworkHelper::moveDequantizationAfter(operation,
         dequantization,
-        updatePrecision,
+        updateOutputPrecision,
         moveSubtract,
         defaultPrecisions);
     updateOutput(context, result.lastDequantization, result.newOperation);
@@ -396,31 +414,31 @@ std::shared_ptr<ov::Node> LayerTransformation::moveDequantizationBefore(
     TransformationContext& context,
     const std::shared_ptr<ov::Node>& operation,
     const FakeQuantizeDequantization& dequantization,
-    const bool updatePrecision,
     const bool moveSubtract) const {
     const auto result = ov::pass::low_precision::NetworkHelper::moveDequantizationBefore(operation,
         dequantization,
-        updatePrecision,
         moveSubtract);
     updateOutput(context, result.newOperation, result.lastDequantization);
     return result.newOperation;
 }
 
-void LayerTransformation::updateOutput(
+bool LayerTransformation::updateOutput(
     TransformationContext &context,
     std::shared_ptr<ov::Node> lastNode,
     std::shared_ptr<ov::Node> originalNode) const {
-    // TODO: not tested!!!
+    bool was_updated = false;
     for (auto output : lastNode->outputs()) {
         for (auto input : output.get_target_inputs()) {
             if (ov::is_type<ov::opset1::Result>(input.get_node())) {
                 const std::string originalName = originalNode->get_friendly_name();
                 originalNode->set_friendly_name(originalName + LayerTransformation::originalLayerPostfix);
                 lastNode->set_friendly_name(originalName);
+                was_updated = true;
                 break;
             }
         }
     }
+    return was_updated;
 }
 
 void LayerTransformation::updateOutput(

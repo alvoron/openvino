@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <memory>
+#include <unordered_set>
 
 // one place to include all Low Precision Transformations from ov::pass::low_precision
 #include "low_precision/rt_info/intervals_alignment_attribute.hpp"
@@ -48,9 +49,9 @@ public:
         const AttributeParameters& params);
     bool run_on_model(const std::shared_ptr<ov::Model>& m) override;
 private:
-    const std::vector<PrecisionsRestriction>& precisionRestrictions;
-    const std::vector<QuantizationGranularityRestriction>& quantizationRestrictions;
-    const AttributeParameters& params;
+    const std::vector<PrecisionsRestriction> precisionRestrictions;
+    const std::vector<QuantizationGranularityRestriction> quantizationRestrictions;
+    const AttributeParameters params;
 };
 
 class ov::pass::low_precision::TypeRelaxedReplacer : public ov::pass::GraphRewrite {
@@ -59,7 +60,7 @@ public:
     TypeRelaxedReplacer();
 };
 
-class ov::pass::low_precision::LowPrecision : public ov::pass::ModelPass {
+class LP_TRANSFORMATIONS_API ov::pass::low_precision::LowPrecision : public ov::pass::ModelPass {
 public:
     OPENVINO_RTTI("LowPrecision", "0");
     LowPrecision(
@@ -68,12 +69,23 @@ public:
         const LayerTransformation::Params = LayerTransformation::Params());
     bool run_on_model(const std::shared_ptr<ov::Model>& m) override;
 
-    static bool isFunctionQuantized(const std::shared_ptr<const ov::Model>& model);
+    static bool isFunctionQuantized(
+        const std::shared_ptr<const ov::Model>& model,
+        const std::set<levels>& supported_levels = all_levels);
     static bool isFQLevelsPresent(const std::shared_ptr<const ov::Model>& model, const std::set<size_t>& levels);
+
+    template <typename T, class... Args>
+    std::shared_ptr<T> add_main(Args&&... args) {
+        const auto tr = std::make_shared<T>(std::forward<Args>(args)...);
+        additional_main_passes.push_back(tr);
+        return tr;
+    }
 
 protected:
     std::vector<PrecisionsRestriction> precisionRestrictions;
     std::vector<QuantizationGranularityRestriction> quantizationRestrictions;
     // remove
     LayerTransformation::Params params;
+
+    std::vector<std::shared_ptr<MatcherPass>> additional_main_passes;
 };

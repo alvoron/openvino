@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "openvino/op/gather.hpp"
+
 #include <gtest/gtest.h>
 
 #include "base_reference_test.hpp"
-#include "openvino/opsets/opset1.hpp"
-#include "openvino/opsets/opset7.hpp"
-#include "openvino/opsets/opset8.hpp"
+#include "openvino/op/constant.hpp"
+#include "openvino/op/parameter.hpp"
 
 using namespace reference_tests;
 using namespace ov;
@@ -62,11 +63,11 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const GatherParams& params) {
-        const auto P = std::make_shared<opset1::Parameter>(params.dataTensor.type, params.dataTensor.shape);
-        const auto I = std::make_shared<opset1::Parameter>(params.indicesTensor.type, params.indicesTensor.shape);
+        const auto P = std::make_shared<op::v0::Parameter>(params.dataTensor.type, params.dataTensor.shape);
+        const auto I = std::make_shared<op::v0::Parameter>(params.indicesTensor.type, params.indicesTensor.shape);
         const auto A =
-            opset1::Constant::create(params.axisTensor.type, params.axisTensor.shape, params.axisTensor.data.data());
-        const auto G = std::make_shared<opset1::Gather>(P, I, A);
+            op::v0::Constant::create(params.axisTensor.type, params.axisTensor.shape, params.axisTensor.data.data());
+        const auto G = std::make_shared<op::v1::Gather>(P, I, A);
         const auto f = std::make_shared<Model>(G, ParameterVector{P, I});
         return f;
     }
@@ -129,11 +130,11 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const GatherParamsV7& params) {
-        const auto P = std::make_shared<opset1::Parameter>(params.dataTensor.type, params.dataTensor.shape);
-        const auto I = std::make_shared<opset1::Parameter>(params.indicesTensor.type, params.indicesTensor.shape);
+        const auto P = std::make_shared<op::v0::Parameter>(params.dataTensor.type, params.dataTensor.shape);
+        const auto I = std::make_shared<op::v0::Parameter>(params.indicesTensor.type, params.indicesTensor.shape);
         const auto A =
-            opset1::Constant::create(params.axisTensor.type, params.axisTensor.shape, params.axisTensor.data.data());
-        const auto G = std::make_shared<opset7::Gather>(P, I, A, params.batchDims);
+            op::v0::Constant::create(params.axisTensor.type, params.axisTensor.shape, params.axisTensor.data.data());
+        const auto G = std::make_shared<op::v7::Gather>(P, I, A, params.batchDims);
         const auto f = std::make_shared<Model>(G, ParameterVector{P, I});
         return f;
     }
@@ -146,11 +147,11 @@ TEST_P(ReferenceGatherTestV7, CompareWithRefs) {
 class ReferenceGatherTestV8 : public ReferenceGatherTestV7 {
 private:
     static std::shared_ptr<Model> CreateFunction(const GatherParamsV7& params) {
-        const auto P = std::make_shared<opset1::Parameter>(params.dataTensor.type, params.dataTensor.shape);
-        const auto I = std::make_shared<opset1::Parameter>(params.indicesTensor.type, params.indicesTensor.shape);
+        const auto P = std::make_shared<op::v0::Parameter>(params.dataTensor.type, params.dataTensor.shape);
+        const auto I = std::make_shared<op::v0::Parameter>(params.indicesTensor.type, params.indicesTensor.shape);
         const auto A =
-            opset1::Constant::create(params.axisTensor.type, params.axisTensor.shape, params.axisTensor.data.data());
-        const auto G = std::make_shared<opset8::Gather>(P, I, A, params.batchDims);
+            op::v0::Constant::create(params.axisTensor.type, params.axisTensor.shape, params.axisTensor.data.data());
+        const auto G = std::make_shared<op::v8::Gather>(P, I, A, params.batchDims);
         const auto f = std::make_shared<Model>(G, ParameterVector{P, I});
         return f;
     }
@@ -441,6 +442,62 @@ std::vector<GatherParamsV7> generateParamsV7<element::boolean, element::i32, ele
 }
 
 template <element::Type_t ET, element::Type_t ET_I, element::Type_t ET_A>
+std::vector<GatherParamsV7> generateParamsStringValue() {
+    using T = typename element_type_traits<ET>::value_type;
+    using T_I = typename element_type_traits<ET_I>::value_type;
+    using T_A = typename element_type_traits<ET_A>::value_type;
+    std::vector<GatherParamsV7> params{
+        {reference_tests::Tensor(ET, {2}, std::vector<T>{"A", "B c"}),
+         reference_tests::Tensor(ET_I, {1}, std::vector<T_I>{1}),
+         reference_tests::Tensor(ET_A, {1}, std::vector<T_A>{0}),
+         0,
+         reference_tests::Tensor(ET, {1}, std::vector<T>{"B c"}),
+         "gather_string_1D_data"},
+        {reference_tests::Tensor(ET, {2, 2}, std::vector<T>{"A", "B c", "d.Ef", " G h,i;"}),
+         reference_tests::Tensor(ET_I, {1}, std::vector<T_I>{1}),
+         reference_tests::Tensor(ET_A, {1}, std::vector<T_A>{0}),
+         0,
+         reference_tests::Tensor(ET, {1, 2}, std::vector<T>{"d.Ef", " G h,i;"}),
+         "gather_string_2D_data"},
+        {reference_tests::Tensor(ET, {2, 2}, std::vector<T>{"A", "B c", "d.Ef", " G h,i;"}),
+         reference_tests::Tensor(ET_I, {2, 1}, std::vector<T_I>{0, 1}),
+         reference_tests::Tensor(ET_A, {1}, std::vector<T_A>{1}),
+         1,
+         reference_tests::Tensor(ET, {2, 1}, std::vector<T>{"A", " G h,i;"}),
+         "gather_string_2D_data_batch_dims_1"},
+        {reference_tests::Tensor(ET, {2, 2}, std::vector<T>{"A", "B c", "d.Ef", " G h,i;"}),
+         reference_tests::Tensor(ET_I, {2, 1}, std::vector<T_I>{1, 0}),
+         reference_tests::Tensor(ET_A, {1}, std::vector<T_A>{1}),
+         1,
+         reference_tests::Tensor(ET, {2, 1}, std::vector<T>{"B c", "d.Ef"}),
+         "gather_string_2D_data_batch_dims_1_reversed"},
+        {reference_tests::Tensor(ET, {2, 1, 2}, std::vector<T>{"A", "B c", "d.Ef", " G h,i;"}),
+         reference_tests::Tensor(ET_I, {2, 1, 2}, std::vector<T_I>{0, 1, 1, 0}),
+         reference_tests::Tensor(ET_A, {1}, std::vector<T_A>{2}),
+         2,
+         reference_tests::Tensor(ET, {2, 1, 2}, std::vector<T>{"A", "B c", " G h,i;", "d.Ef"}),
+         "gather_string_3D_data_batch_dims_2"},
+        {reference_tests::Tensor(ET,
+                                 {2, 2, 2},
+                                 std::vector<T>{"A", "B c", "d.Ef", " G h,i;", "JK ", "l,m,n,", " ", " \0"}),
+         reference_tests::Tensor(ET_I, {1}, std::vector<T_I>{1}),
+         reference_tests::Tensor(ET_A, {1}, std::vector<T_A>{1}),
+         0,
+         reference_tests::Tensor(ET, {2, 1, 2}, std::vector<T>{"d.Ef", " G h,i;", " ", " \0"}),
+         "gather_string_3D_data_axis_1"},
+        {reference_tests::Tensor(ET,
+                                 {2, 2, 2},
+                                 std::vector<T>{"A", "B c", "d.Ef", " G h,i;", "JK ", "l,m,n,", " ", " \0"}),
+         reference_tests::Tensor(ET_I, {1}, std::vector<T_I>{1}),
+         reference_tests::Tensor(ET_A, {1}, std::vector<T_A>{0}),
+         0,
+         reference_tests::Tensor(ET, {1, 2, 2}, std::vector<T>{"JK ", "l,m,n,", " ", " \0"}),
+         "gather_string_3D_data_axis_0"},
+    };
+    return params;
+}
+
+template <element::Type_t ET, element::Type_t ET_I, element::Type_t ET_A>
 std::vector<GatherParamsV7> generateParamsFloatValueV7() {
     using T = typename element_type_traits<ET>::value_type;
     using T_I = typename element_type_traits<ET_I>::value_type;
@@ -632,6 +689,7 @@ std::vector<GatherParamsV7> generateCombinedParamsV7() {
         generateParamsFloatValueV7<element::Type_t::f16, element::Type_t::i32, element::Type_t::i64>(),
         generateParamsFloatValueV7<element::Type_t::f32, element::Type_t::i32, element::Type_t::i64>(),
         generateParamsFloatValueV7<element::Type_t::f64, element::Type_t::i32, element::Type_t::i64>(),
+        generateParamsStringValue<element::Type_t::string, element::Type_t::i32, element::Type_t::i64>(),
     };
     std::vector<GatherParamsV7> combinedParams;
 
@@ -716,6 +774,7 @@ std::vector<GatherParamsV7> generateCombinedParamsV8() {
         generateParamsV8<element::Type_t::f16, element::Type_t::i32, element::Type_t::i64>(),
         generateParamsV8<element::Type_t::f32, element::Type_t::i32, element::Type_t::i64>(),
         generateParamsV8<element::Type_t::f64, element::Type_t::i32, element::Type_t::i64>(),
+        generateParamsStringValue<element::Type_t::string, element::Type_t::i32, element::Type_t::i64>(),
     };
     std::vector<GatherParamsV7> combinedParams;
 

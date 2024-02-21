@@ -1,9 +1,8 @@
-// Copyright (C) 2018-2023 Intel Corporation
+// Copyright (C) 2018-2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "pyopenvino/core/async_infer_queue.hpp"
 
-#include <ie_common.h>
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
 

@@ -3,13 +3,11 @@
 //
 
 #include "include/auto_unit_test.hpp"
-
 using namespace ov::mock_auto_plugin;
 using Config = std::map<std::string, std::string>;
 using ConfigParams = std::tuple<std::vector<std::string>>;
 
-class LoadNetworkWithCTPUTMockTest :    public tests::AutoTest,
-                                        public ::testing::TestWithParam<ConfigParams> {
+class LoadNetworkWithCTPUTMockTest : public tests::AutoTest, public ::testing::TestWithParam<ConfigParams> {
 public:
     static std::string getTestCaseName(testing::TestParamInfo<ConfigParams> obj) {
         std::vector<std::string> targetDevices;
@@ -29,12 +27,16 @@ public:
     void SetUp() override {
         std::vector<std::string> availableDevs = {"CPU", "GPU"};
         ON_CALL(*core, get_available_devices()).WillByDefault(Return(availableDevs));
-        ON_CALL(*core, compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-            ::testing::Matcher<const std::string&>(StrEq(ov::test::utils::DEVICE_CPU)), _))
+        ON_CALL(*core,
+                compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
+                              ::testing::Matcher<const std::string&>(StrEq(ov::test::utils::DEVICE_CPU)),
+                              _))
             .WillByDefault(Return(mockExeNetwork));
-        ON_CALL(*core, compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-                    ::testing::Matcher<const std::string&>(StrEq(ov::test::utils::DEVICE_GPU)), _))
-                    .WillByDefault(Return(mockExeNetworkActual));
+        ON_CALL(*core,
+                compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
+                              ::testing::Matcher<const std::string&>(StrEq(ov::test::utils::DEVICE_GPU)),
+                              _))
+            .WillByDefault(Return(mockExeNetworkActual));
     }
 };
 
@@ -47,21 +49,19 @@ TEST_P(LoadNetworkWithCTPUTMockTest, CTPUTSingleDevLogicTest) {
 
     if (targetDevices.size() == 1) {
         std::string targetDevice = targetDevices[0];
-        config.insert({InferenceEngine::MultiDeviceConfigParams::KEY_MULTI_DEVICE_PRIORITIES, targetDevices[0]});
+        config.insert(ov::device::priorities(targetDevice));
         // Call single device logic and performance hint is THROUGHPUT
         EXPECT_CALL(*core,
                     compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-                                ::testing::Matcher<const std::string&>(targetDevice),
-                                ::testing::Matcher<const ov::AnyMap&>(
-                                    ComparePerfHint("THROUGHPUT"))))
+                                  ::testing::Matcher<const std::string&>(targetDevice),
+                                  ::testing::Matcher<const ov::AnyMap&>(ComparePerfHint("THROUGHPUT"))))
             .Times(1);
         // if target device only has GPU, no CPU helper to be called
         if (targetDevice.find("GPU") != std::string::npos) {
             EXPECT_CALL(*core,
                         compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-                                    ::testing::Matcher<const std::string&>(ov::test::utils::DEVICE_CPU),
-                                    ::testing::Matcher<const ov::AnyMap&>(
-                                        ComparePerfHint("LATENCY"))))
+                                      ::testing::Matcher<const std::string&>(ov::test::utils::DEVICE_CPU),
+                                      ::testing::Matcher<const ov::AnyMap&>(ComparePerfHint("LATENCY"))))
                 .Times(0);
         }
     } else {
@@ -71,18 +71,16 @@ TEST_P(LoadNetworkWithCTPUTMockTest, CTPUTSingleDevLogicTest) {
             targetDev += ((deviceName == targetDevices.back()) ? "" : ",");
             EXPECT_CALL(*core,
                         compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-                                    ::testing::Matcher<const std::string&>(deviceName),
-                                    ::testing::Matcher<const ov::AnyMap&>(
-                                        ComparePerfHint("THROUGHPUT"))))
+                                      ::testing::Matcher<const std::string&>(deviceName),
+                                      ::testing::Matcher<const ov::AnyMap&>(ComparePerfHint("THROUGHPUT"))))
                 .Times(1);
         }
         config.insert(ov::device::priorities(targetDev));
         // no CPU helper to be called
         EXPECT_CALL(*core,
                     compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-                                ::testing::Matcher<const std::string&>(ov::test::utils::DEVICE_CPU),
-                                ::testing::Matcher<const ov::AnyMap&>(
-                                    ComparePerfHint("LATENCY"))))
+                                  ::testing::Matcher<const std::string&>(ov::test::utils::DEVICE_CPU),
+                                  ::testing::Matcher<const ov::AnyMap&>(ComparePerfHint("LATENCY"))))
             .Times(0);
     }
 
@@ -96,7 +94,7 @@ TEST_P(LoadNetworkWithCTPUTMockTestExeDevice, CTPUTSingleDevExecutionDevie) {
     std::tie(targetDevices) = this->GetParam();
 
     plugin->set_device_name("AUTO");
-    config.insert({{CONFIG_KEY(PERFORMANCE_HINT), InferenceEngine::PluginConfigParams::CUMULATIVE_THROUGHPUT}});
+    config.insert({ov::hint::performance_mode(ov::hint::PerformanceMode::CUMULATIVE_THROUGHPUT)});
     config.insert(ov::device::priorities(targetDevices[0]));
     // Call single device logic and performance hint is THROUGHPUT
     ASSERT_NO_THROW(exeNetwork = plugin->compile_model(model, config));
@@ -150,12 +148,16 @@ public:
     void SetUp() override {
         std::vector<std::string> availableDevs = {"CPU", "GPU"};
         ON_CALL(*core, get_available_devices()).WillByDefault(Return(availableDevs));
-        ON_CALL(*core, compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-            ::testing::Matcher<const std::string&>(StrEq(ov::test::utils::DEVICE_CPU)), _))
+        ON_CALL(*core,
+                compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
+                              ::testing::Matcher<const std::string&>(StrEq(ov::test::utils::DEVICE_CPU)),
+                              _))
             .WillByDefault(Return(mockExeNetwork));
-        ON_CALL(*core, compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-                    ::testing::Matcher<const std::string&>(StrEq(ov::test::utils::DEVICE_GPU)), _))
-                    .WillByDefault(Return(mockExeNetworkActual));
+        ON_CALL(*core,
+                compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
+                              ::testing::Matcher<const std::string&>(StrEq(ov::test::utils::DEVICE_GPU)),
+                              _))
+            .WillByDefault(Return(mockExeNetworkActual));
     }
 };
 
@@ -172,25 +174,25 @@ TEST_P(AutoCTPUTCallMulti, CTPUTDeviceLoadFailedNoExceptionThrowTest) {
         targetDev += ((deviceName == targetDevices.back()) ? "" : ",");
     }
     std::shared_ptr<ov::ICompiledModel> exeNetwork;
-    config.insert({{CONFIG_KEY(PERFORMANCE_HINT), InferenceEngine::PluginConfigParams::CUMULATIVE_THROUGHPUT}});
+    config.insert({ov::hint::performance_mode(ov::hint::PerformanceMode::CUMULATIVE_THROUGHPUT)});
     config.insert(ov::device::priorities(targetDev));
     ON_CALL(*core,
             compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-                        ::testing::Matcher<const std::string&>(StrEq(loadFailedDevice)),
-                        ::testing::Matcher<const ov::AnyMap&>(_)))
-        .WillByDefault(Throw(InferenceEngine::GeneralError{""}));
+                          ::testing::Matcher<const std::string&>(StrEq(loadFailedDevice)),
+                          ::testing::Matcher<const ov::AnyMap&>(_)))
+        .WillByDefault(ov::Throw("GeneralError"));
     if (loadFailedDevice != ov::test::utils::DEVICE_CPU) {
         EXPECT_CALL(*core,
                     compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-                                ::testing::Matcher<const std::string&>(ov::test::utils::DEVICE_CPU),
-                                ::testing::Matcher<const ov::AnyMap&>(_)))
+                                  ::testing::Matcher<const std::string&>(ov::test::utils::DEVICE_CPU),
+                                  ::testing::Matcher<const ov::AnyMap&>(_)))
             .Times(1);
     }
     if (loadFailedDevice != ov::test::utils::DEVICE_GPU) {
         EXPECT_CALL(*core,
                     compile_model(::testing::Matcher<const std::shared_ptr<const ov::Model>&>(_),
-                                ::testing::Matcher<const std::string&>(ov::test::utils::DEVICE_GPU),
-                                ::testing::Matcher<const ov::AnyMap&>(_)))
+                                  ::testing::Matcher<const std::string&>(ov::test::utils::DEVICE_GPU),
+                                  ::testing::Matcher<const ov::AnyMap&>(_)))
             .Times(1);
     }
     ASSERT_NO_THROW(exeNetwork = plugin->compile_model(model, config));

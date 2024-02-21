@@ -4,23 +4,21 @@
 
 #pragma once
 
-
-#include "low_precision/layer_transformation.hpp"
-#include "low_precision/eltwise_base_transformation.hpp"
+#include "low_precision/cleanup_transformation.hpp"
 
 namespace ov {
 namespace pass {
 namespace low_precision {
 
 /**
- * @ingroup ie_transformation_common_api
+ * @ingroup ov_transformation_common_api
  * @brief FuseConvertTransformation fuses Convert operation with Multiply, Subtract or Add operations.
  *
  * For more details about the transformation, refer to
  * [FuseConvertTransformation](@ref openvino_docs_OV_UG_lpt_FuseConvertTransformation) page
- * in the Inference Engine Developer Guide.
+ * in the OpenVINO Developer Guide.
  */
-class LP_TRANSFORMATIONS_API FuseConvertTransformation : public LayerTransformation {
+class LP_TRANSFORMATIONS_API FuseConvertTransformation : public CleanupTransformation {
 public:
     OPENVINO_RTTI("FuseConvertTransformation", "0");
     FuseConvertTransformation(const Params& params = Params());

@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Intel Corporation
+// Copyright (C) 2018-2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -49,9 +49,28 @@ void regclass_graph_op_If(py::module m) {
             :rtype: openvino.impl.op.If
         )");
 
-    cls.def("get_else_body",
-            &ov::op::v8::If::get_else_body,
-            R"(
+    cls.def(
+        "get_then_body",
+        [](ov::op::v8::If& self) {
+            auto model = self.get_then_body();
+            py::type model_class = py::module_::import("openvino.runtime").attr("Model");
+            return model_class(py::cast(model));
+        },
+        R"(
+            Gets then_body as Model object.
+
+            :return: then_body as Model object.
+            :rtype: openvino.Model
+        )");
+
+    cls.def(
+        "get_else_body",
+        [](ov::op::v8::If& self) {
+            auto model = self.get_else_body();
+            py::type model_class = py::module_::import("openvino.runtime").attr("Model");
+            return model_class(py::cast(model));
+        },
+        R"(
             Gets else_body as Model object.
 
             :return: else_body as Model object.
@@ -110,19 +129,24 @@ void regclass_graph_op_If(py::module m) {
             Sets new output from the operation associated with results of each sub-graphs.
 
             :param then_result: result from then_body.
-            :type then_result: openvino.runtime.Node
+            :type then_result: op.Result
 
             :param else_result: result from else_body.
-            :type else_result: openvino.runtime.Node
+            :type else_result: op.Result
 
             :return: output from operation.
             :rtype: openvino.runtime.Output
         )");
 
-    cls.def("get_function",
-            &ov::op::util::MultiSubGraphOp::get_function,
-            py::arg("index"),
-            R"(
+    cls.def(
+        "get_function",
+        [](ov::op::v8::If& self, size_t index) {
+            auto model = self.get_function(index);
+            py::type model_class = py::module_::import("openvino.runtime").attr("Model");
+            return model_class(py::cast(model));
+        },
+        py::arg("index"),
+        R"(
             Gets internal sub-graph by index in MultiSubGraphOp.
 
             :param index: sub-graph's index in op.

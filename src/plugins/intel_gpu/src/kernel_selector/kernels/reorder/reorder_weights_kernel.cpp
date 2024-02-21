@@ -12,9 +12,11 @@ ParamsKey ReorderWeightsKernel::GetSupportedKey() const {
     k.EnableInputWeightsType(WeightsType::INT8);
     k.EnableInputWeightsType(WeightsType::F16);
     k.EnableInputWeightsType(WeightsType::F32);
+    k.EnableInputWeightsType(WeightsType::INT32);
     k.EnableOutputWeightsType(WeightsType::INT8);
     k.EnableOutputWeightsType(WeightsType::F16);
     k.EnableOutputWeightsType(WeightsType::F32);
+    k.EnableOutputWeightsType(WeightsType::INT32);
     k.EnableAllInputWeightsLayout();
     k.EnableAllOutputWeightsLayout();
     k.EnableDifferentTypes();
@@ -24,12 +26,12 @@ ParamsKey ReorderWeightsKernel::GetSupportedKey() const {
     return k;
 }
 
-KernelsData ReorderWeightsKernel::GetKernelsData(const Params& params, const optional_params& options) const {
+KernelsData ReorderWeightsKernel::GetKernelsData(const Params& params) const {
     const reorder_weights_params& orgParams = static_cast<const reorder_weights_params&>(params);
-    return GetCommonKernelsData(orgParams, options);
+    return GetCommonKernelsData(orgParams);
 }
 
-KernelsPriority ReorderWeightsKernel::GetKernelsPriority(const Params& /*params*/, const optional_params& /*options*/) const {
+KernelsPriority ReorderWeightsKernel::GetKernelsPriority(const Params& /*params*/) const {
     return DONT_USE_IF_HAVE_SOMETHING_ELSE;
 }
 }  // namespace kernel_selector

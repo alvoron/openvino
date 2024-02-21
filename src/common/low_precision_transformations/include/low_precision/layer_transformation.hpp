@@ -38,25 +38,10 @@ namespace ov {
 namespace pass {
 namespace low_precision {
 namespace precision_set {
-    const std::vector<element::Type> int8_support  = {
-            ov::element::u8,  ov::element::i8
-    };
-    const std::vector<element::Type> int8_int16_int32_support = {
-            ov::element::u8,  ov::element::i8,
-            ov::element::u16, ov::element::i16,
-            ov::element::u32, ov::element::i32
-    };
-}
-enum levels : size_t {
-    int4 = 16,
-    int4_narrow_range = 15,
-    int8 = 256,
-    int8_narrow_range = 255,
-    int16 = 65536,
-    int16_narrow_range = 65535,
-    int32 = size_t(4294967296),  // for ARM and ia32 platforms where this number bigger than size_t but never used
-    int32_narrow_range = 4294967295
-};
+    LP_TRANSFORMATIONS_API const std::vector<element::Type>& get_int8_support();
+    LP_TRANSFORMATIONS_API const std::vector<element::Type>& get_int8_int16_int32_support();
+} // namespace precision_set
+
 class LP_TRANSFORMATIONS_API DataPrecision {
 public:
     DataPrecision() : precision(element::undefined), min(0.f), max(0.f), hasZeroPoint(false) {}
@@ -94,6 +79,7 @@ public:
         switch (precision) {
             case element::i4:
             case element::u4:
+            case element::nf4:
                 return (levels == low_precision::levels::int4) || (levels == low_precision::levels::int4_narrow_range);
             case element::i8:
             case element::u8:
@@ -248,7 +234,7 @@ inline std::ostream &operator << (std::ostream &os, const DataPrecision& value) 
 }
 
 /**
- * @ingroup ie_transformation_common_api
+ * @ingroup ov_transformation_common_api
  * @brief Base class for low precision transformation.
  */
 class LP_TRANSFORMATIONS_API LayerTransformation : public ov::pass::MatcherPass {
@@ -312,7 +298,7 @@ public:
 
     virtual bool canBeTransformed(const TransformationContext& context, std::shared_ptr<Node> layer) const;
     static bool canBeTransformedStatic(const std::shared_ptr<Node>& layer,
-        const std::vector<ov::element::Type>& defaultPrecisions = precision_set::int8_support);
+        const std::vector<ov::element::Type>& defaultPrecisions = precision_set::get_int8_support());
 
     bool canSubtractBeHandled(const std::shared_ptr<Node>& op, const FakeQuantizeDequantization& dequantization) const;
 
@@ -326,7 +312,7 @@ public:
     static PrecisionDetails getPrecisionDetails(const QuantizationDetails& quantizationDetails);
 
     static bool isAsymmetricQuantization(const std::shared_ptr<const Node>& node,
-        const std::vector<ov::element::Type>& defaultPrecisions = precision_set::int8_support);
+        const std::vector<ov::element::Type>& defaultPrecisions = precision_set::get_int8_support());
 
     // return true if operation can be quantized and false otherwise
     // for example: if convolution operation weights are not quantized, then isQuantize returns false and true otherwise
@@ -366,17 +352,16 @@ protected:
         TransformationContext &context,
         const std::shared_ptr<ov::Node>& operation,
         const FakeQuantizeDequantization& dequantization,
-        const bool updatePrecision,
+        const bool updateOutputPrecision = true,
         const bool moveSubtract = true) const;
 
     std::shared_ptr<ov::Node> moveDequantizationBefore(
         TransformationContext& context,
         const std::shared_ptr<ov::Node>& operation,
         const FakeQuantizeDequantization& dequantization,
-        const bool updatePrecision,
         const bool moveSubtract = true) const;
 
-    void updateOutput(
+    bool updateOutput(
         TransformationContext &context,
         std::shared_ptr<ov::Node> lastNode,
         std::shared_ptr<ov::Node> originalNode) const;

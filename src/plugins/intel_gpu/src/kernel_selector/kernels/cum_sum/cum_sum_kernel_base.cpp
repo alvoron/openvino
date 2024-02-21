@@ -66,20 +66,7 @@ CumSumKernelBase::DispatchData CumSumKernelBase::SetDefault(const cum_sum_params
     return dispatchData;
 }
 
-KernelsData CumSumKernelBase::GetCommonKernelsData(const Params& params,
-                                                   const optional_params& options) const {
-    KernelData kd = KernelData::Default<cum_sum_params>(params);
-    cum_sum_params& newParams = *static_cast<cum_sum_params*>(kd.params.get());
-
-    if (!Validate(params, options)) {
-        return {};
-    }
-
-    auto dispatchData = SetDefault(newParams);
-    auto entry_point = GetEntryPoint(kernelName, newParams.layerID, params, options);
-    auto cldnn_jit = GetJitConstants(newParams, dispatchData);
-    auto jit = CreateJit(kernelName, cldnn_jit, entry_point);
-
+void CumSumKernelBase::GetUpdateDispatchDataFunc(KernelData& kd) const {
     kd.update_dispatch_data_func = [this](const Params& params, KernelData& kd) {
         const auto& prim_params = static_cast<const cum_sum_params&>(params);
         auto dispatchData = SetDefault(prim_params);
@@ -88,6 +75,22 @@ KernelsData CumSumKernelBase::GetCommonKernelsData(const Params& params,
         kd.kernels[0].params.workGroups.local = dispatchData.lws;
         kd.kernels[0].skip_execution = KernelData::SkipKernelExecution(prim_params);
     };
+}
+
+KernelsData CumSumKernelBase::GetCommonKernelsData(const Params& params) const {
+    KernelData kd = KernelData::Default<cum_sum_params>(params);
+    cum_sum_params& newParams = *static_cast<cum_sum_params*>(kd.params.get());
+
+    if (!Validate(params)) {
+        return {};
+    }
+
+    auto dispatchData = SetDefault(newParams);
+    auto entry_point = GetEntryPoint(kernelName, newParams.layerID, params);
+    auto cldnn_jit = GetJitConstants(newParams, dispatchData);
+    auto jit = CreateJit(kernelName, cldnn_jit, entry_point);
+
+    GetUpdateDispatchDataFunc(kd);
 
     auto& kernel = kd.kernels[0];
 
@@ -100,8 +103,8 @@ KernelsData CumSumKernelBase::GetCommonKernelsData(const Params& params,
     return {kd};
 }
 
-bool CumSumKernelBase::Validate(const Params& p, const optional_params& o) const {
-    if (p.GetType() != KernelType::CUM_SUM || o.GetType() != KernelType::CUM_SUM) {
+bool CumSumKernelBase::Validate(const Params& p) const {
+    if (p.GetType() != KernelType::CUM_SUM) {
         return false;
     }
 

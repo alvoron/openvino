@@ -12,10 +12,12 @@ ov_add_test_target(
         NAME ${TARGET_NAME}
         ROOT ${CMAKE_CURRENT_SOURCE_DIR}
         DEPENDENCIES
-            template_extension
+            openvino_template_extension
         LINK_LIBRARIES
             unit_test_utils
         ADD_CLANG_FORMAT
         LABELS
-            OV
+            OV UNIT RUNTIME
 )
+
+ov_set_threading_interface_for(${TARGET_NAME})

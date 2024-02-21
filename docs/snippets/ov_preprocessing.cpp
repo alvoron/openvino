@@ -1,9 +1,10 @@
-// Copyright (C) 2018-2023 Intel Corporation
+// Copyright (C) 2018-2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
-#include <openvino/runtime/core.hpp>
-#include <openvino/opsets/opset8.hpp>
-#include <openvino/core/preprocess/pre_post_process.hpp>
+#include "openvino/core/graph_util.hpp"
+#include "openvino/core/preprocess/pre_post_process.hpp"
+#include "openvino/opsets/opset8.hpp"
+#include "openvino/runtime/core.hpp"
 
 void ppp_input_1(ov::preprocess::PrePostProcessor& ppp) {
 //! [ov:preprocess:input_1]
@@ -165,7 +166,7 @@ int main() {
  //! [ov:preprocess:save_headers]
 
 void save_example() {
- //! [ov:preprocess:save]
+ //! [ov:preprocess:save_model]
  // ========  Step 0: read original model =========
  ov::Core core;
  std::shared_ptr<ov::Model> model = core.read_model("/path/to/some_model.onnx");
@@ -200,7 +201,7 @@ void save_example() {
  std::string xml = "/path/to/some_model_saved.xml";
  std::string bin = "/path/to/some_model_saved.bin";
  ov::serialize(model, xml, bin);
- //! [ov:preprocess:save]
+ //! [ov:preprocess:save_model]
 
 }
 

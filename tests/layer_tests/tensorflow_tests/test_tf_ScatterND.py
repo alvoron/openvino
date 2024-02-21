@@ -1,6 +1,8 @@
 # Copyright (C) 2018-2023 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import platform
+
 import pytest
 
 from common.tf_layer_test_class import CommonTFLayerTest
@@ -9,7 +11,7 @@ from common.utils.tf_utils import permute_nchw_to_nhwc
 
 class TestTFScatterND(CommonTFLayerTest):
     def create_tf_scatternd_placeholder_const_net(self, x_shape, indices, updates, ir_version,
-                                                  use_new_frontend):
+                                                  use_legacy_frontend):
         #
         #   Create Tensorflow model
         #
@@ -22,7 +24,7 @@ class TestTFScatterND(CommonTFLayerTest):
         with tf.compat.v1.Session() as sess:
             tf_x_shape = x_shape.copy()
 
-            tf_x_shape = permute_nchw_to_nhwc(tf_x_shape, use_new_frontend)
+            tf_x_shape = permute_nchw_to_nhwc(tf_x_shape, use_legacy_frontend)
 
             x = tf.compat.v1.placeholder(tf.float32, tf_x_shape, 'Input')
             tf_indices = tf.constant(indices)
@@ -69,9 +71,11 @@ class TestTFScatterND(CommonTFLayerTest):
 
     @pytest.mark.parametrize("params", test_data)
     @pytest.mark.nightly
+    @pytest.mark.xfail(condition=platform.system() == 'Darwin' and platform.machine() == 'arm64',
+                       reason='Ticket - 122716')
     def test_tf_scatter_nd(self, params, ie_device, precision, ir_version, temp_dir,
-                           use_new_frontend, use_old_api):
+                           use_legacy_frontend):
         self._test(*self.create_tf_scatternd_placeholder_const_net(**params, ir_version=ir_version,
-                                                                   use_new_frontend=use_new_frontend),
+                                                                   use_legacy_frontend=use_legacy_frontend),
                    ie_device, precision, temp_dir=temp_dir, ir_version=ir_version,
-                   use_new_frontend=use_new_frontend, use_old_api=use_old_api, **params)
+                   use_legacy_frontend=use_legacy_frontend, **params)

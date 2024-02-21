@@ -27,18 +27,18 @@ class PropagateThroughPrecisionPreserved;
 }  // namespace ov
 
 /**
- * @ingroup ie_transformation_common_api
+ * @ingroup ov_transformation_common_api
  * @brief PropagateThroughPrecisionPreserved transformation propagates AttributeType attribute instances
  * through precision preserved operations.
  *
  * For more details about the transformation, refer to
  * [PropagateThroughPrecisionPreserved](@ref openvino_docs_OV_UG_lpt_PropagateThroughPrecisionPreserved) page
- * in the Inference Engine Developer Guide.
+ * in the OpenVINO Developer Guide.
  */
 template <typename AttributeType>
 class ov::pass::low_precision::PropagateThroughPrecisionPreserved : public ov::pass::MatcherPass {
 public:
-    PropagateThroughPrecisionPreserved(const std::vector<ov::element::Type>& defaultPrecisions = precision_set::int8_support) {
+    PropagateThroughPrecisionPreserved(const std::vector<ov::element::Type>& defaultPrecisions = precision_set::get_int8_support()) {
         ov::graph_rewrite_callback callback = [&](pattern::Matcher& m) {
             auto node = m.get_match_root();
             if (transformation_callback(node)) {

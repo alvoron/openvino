@@ -15,7 +15,7 @@ struct non_max_suppression_impl : typed_primitive_impl_ocl<non_max_suppression> 
     using parent = typed_primitive_impl_ocl<non_max_suppression>;
     using parent::parent;
     using kernel_selector_t = kernel_selector::non_max_suppression_kernel_selector;
-    using kernel_params_t = std::pair<kernel_selector::non_max_suppression_params, kernel_selector::non_max_suppression_optional_params>;
+    using kernel_params_t = kernel_selector::non_max_suppression_params;
 
     DECLARE_OBJECT_TYPE_SERIALIZATION(cldnn::ocl::non_max_suppression_impl)
 
@@ -63,8 +63,6 @@ public:
     static std::unique_ptr<primitive_impl> create(const non_max_suppression_node& arg, const kernel_impl_params& impl_param) {
         const auto& primitive = impl_param.typed_desc<non_max_suppression>();
         auto params = get_default_params<kernel_selector::non_max_suppression_params>(impl_param);
-        auto optional_params =
-            get_default_optional_params<kernel_selector::non_max_suppression_optional_params>(impl_param.get_program());
 
         const auto input_scores_idx = 1;
         params.inputs.push_back(convert_data_tensor(impl_param.input_layouts[input_scores_idx]));
@@ -143,13 +141,24 @@ public:
         params.sort_result_descending = primitive->sort_result_descending;
         params.box_encoding = primitive->center_point_box ? kernel_selector::BoxEncodingType::BOX_ENCODING_CENTER
                                                           : kernel_selector::BoxEncodingType::BOX_ENCODING_CORNER;
+        switch (primitive->rotation) {
+            case non_max_suppression::Rotation::CLOCKWISE:
+                params.rotation = kernel_selector::NMSRotationType::CLOCKWISE;
+                break;
+            case non_max_suppression::Rotation::COUNTERCLOCKWISE:
+                params.rotation = kernel_selector::NMSRotationType::COUNTERCLOCKWISE;
+                break;
+            default:
+                params.rotation = kernel_selector::NMSRotationType::NONE;
+        }
+
         if (impl_param.get_program().get_node(primitive->id).is_dynamic()) {
             params.reuse_internal_buffer = true;
         }
 
         params.set_dynamic_shape_offsets();
         auto& kernel_selector = kernel_selector::non_max_suppression_kernel_selector::Instance();
-        auto best_kernel = kernel_selector.get_best_kernel(params, optional_params);
+        auto best_kernel = kernel_selector.get_best_kernel(params);
 
         return make_unique<non_max_suppression_impl>(best_kernel);
     }
@@ -162,8 +171,8 @@ private:
         auto& stream = node.get_program().get_stream();
         switch (mem->get_layout().data_type) {
         case data_types::f16: {
-            mem_lock<half_t, mem_lock_type::read> lock(mem, stream);
-            auto mem_value = static_cast<half_t*>(lock.data());
+            mem_lock<ov::float16, mem_lock_type::read> lock(mem, stream);
+            auto mem_value = static_cast<ov::float16*>(lock.data());
             retValue = static_cast<T>(*mem_value);
         } break;
         case data_types::f32: {

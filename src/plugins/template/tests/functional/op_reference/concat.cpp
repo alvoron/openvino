@@ -2,10 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "openvino/op/concat.hpp"
+
 #include <gtest/gtest.h>
 
 #include "base_reference_test.hpp"
-#include "openvino/opsets/opset1.hpp"
+#include "openvino/op/add.hpp"
+#include "openvino/op/constant.hpp"
+#include "openvino/op/parameter.hpp"
+#include "openvino/op/subtract.hpp"
 
 using namespace reference_tests;
 using namespace ov;
@@ -68,17 +73,17 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParams& params) {
-        std::shared_ptr<opset1::Parameter> A, B, C;
+        std::shared_ptr<op::v0::Parameter> A, B, C;
         if (params.dynamicShape.is_dynamic()) {
-            A = std::make_shared<opset1::Parameter>(params.A.type, params.dynamicShape);
-            B = std::make_shared<opset1::Parameter>(params.B.type, params.dynamicShape);
-            C = std::make_shared<opset1::Parameter>(params.C.type, params.dynamicShape);
+            A = std::make_shared<op::v0::Parameter>(params.A.type, params.dynamicShape);
+            B = std::make_shared<op::v0::Parameter>(params.B.type, params.dynamicShape);
+            C = std::make_shared<op::v0::Parameter>(params.C.type, params.dynamicShape);
         } else {
-            A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-            B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-            C = std::make_shared<opset1::Parameter>(params.C.type, params.C.shape);
+            A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+            B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+            C = std::make_shared<op::v0::Parameter>(params.C.type, params.C.shape);
         }
-        auto f = std::make_shared<Model>(std::make_shared<opset1::Concat>(NodeVector{A, B, C}, params.axis),
+        auto f = std::make_shared<Model>(std::make_shared<op::v0::Concat>(NodeVector{A, B, C}, params.axis),
                                          ParameterVector{A, B, C});
         return f;
     }
@@ -141,6 +146,69 @@ std::vector<ConcatParams> generateParams() {
     return params;
 }
 
+std::vector<ConcatParams> generateStringParams() {
+    const auto ET = ov::element::string;
+    using T = typename element_type_traits<ov::element::string>::value_type;
+    std::vector<ConcatParams> params{
+        ConcatParams(PartialShape::dynamic(),
+                     reference_tests::Tensor(ET, {2}, std::vector<T>{"  ", "..."}),
+                     reference_tests::Tensor(ET, {2}, std::vector<T>{"Ab cd", "1"}),
+                     reference_tests::Tensor(ET, {0}, std::vector<T>{}),
+                     0,
+                     reference_tests::Tensor(ET, {4}, std::vector<T>{"  ", "...", "Ab cd", "1"}),
+                     "concat_string_2_1D_ax_0"),
+        ConcatParams(PartialShape::dynamic(),
+                     reference_tests::Tensor(ET, {2}, std::vector<T>{"  ", "..."}),
+                     reference_tests::Tensor(ET, {1}, std::vector<T>{"Ab cd"}),
+                     reference_tests::Tensor(ET, {3}, std::vector<T>{"1.2", "; ", " \n "}),
+                     0,
+                     reference_tests::Tensor(ET, {6}, std::vector<T>{"  ", "...", "Ab cd", "1.2", "; ", " \n "}),
+                     "concat_string_3_1D_ax_0"),
+        ConcatParams(PartialShape::dynamic(),
+                     reference_tests::Tensor(ET, {1, 2}, std::vector<T>{"  ", "..."}),
+                     reference_tests::Tensor(ET, {1, 1}, std::vector<T>{"Ab cd"}),
+                     reference_tests::Tensor(ET, {1, 3}, std::vector<T>{"1.2", "; ", " \n "}),
+                     1,
+                     reference_tests::Tensor(ET, {1, 6}, std::vector<T>{"  ", "...", "Ab cd", "1.2", "; ", " \n "}),
+                     "concat_string_3_2D_ax_1"),
+        ConcatParams(PartialShape::dynamic(),
+                     reference_tests::Tensor(ET, {2, 1}, std::vector<T>{"  ", "..."}),
+                     reference_tests::Tensor(ET, {1, 1}, std::vector<T>{"Ab cd"}),
+                     reference_tests::Tensor(ET, {3, 1}, std::vector<T>{"1.2", "; ", " \n "}),
+                     0,
+                     reference_tests::Tensor(ET, {6, 1}, std::vector<T>{"  ", "...", "Ab cd", "1.2", "; ", " \n "}),
+                     "concat_string_3_2D_ax_0"),
+        ConcatParams(
+            PartialShape::dynamic(),
+            reference_tests::Tensor(ET, {1, 2, 1, 2}, std::vector<T>{{"1,2", "3;4;", "- 5 -", "...."}}),
+            reference_tests::Tensor(ET, {1, 2, 1, 3}, std::vector<T>{"a", ",b", "c. ", "d d ", " e ", "F"}),
+            reference_tests::Tensor(ET, {1, 2, 1, 4}, std::vector<T>{"defg ", ".", "3 4", ":", " \0", "_", "\n", ";"}),
+            3,
+            reference_tests::Tensor(ET,
+                                    {1, 2, 1, 9},
+                                    std::vector<T>{"1,2",
+                                                   "3;4;",
+                                                   "a",
+                                                   ",b",
+                                                   "c. ",
+                                                   "defg ",
+                                                   ".",
+                                                   "3 4",
+                                                   ":",
+                                                   "- 5 -",
+                                                   "....",
+                                                   "d d ",
+                                                   " e ",
+                                                   "F",
+                                                   " ",
+                                                   "_",
+                                                   "\n",
+                                                   ";"}),
+            "concat_string_3_4D_ax_3"),
+    };
+    return params;
+}
+
 std::vector<ConcatParams> generateCombinedParams() {
     const std::vector<std::vector<ConcatParams>> generatedParams{
         generateParams<element::Type_t::i8>(),
@@ -155,6 +223,7 @@ std::vector<ConcatParams> generateCombinedParams() {
         generateParams<element::Type_t::f16>(),
         generateParams<element::Type_t::f32>(),
         generateParams<element::Type_t::f64>(),
+        generateStringParams(),
     };
     std::vector<ConcatParams> combinedParams;
 
@@ -190,11 +259,11 @@ public:
         NodeVector inputs;
         ParameterVector inputs_param;
         for (uint32_t i = 0; i < params.numInputs; i++) {
-            auto A = std::make_shared<opset1::Parameter>(element::f32, shape_a);
+            auto A = std::make_shared<op::v0::Parameter>(element::f32, shape_a);
             inputs_param.push_back(A);
             inputs.push_back(A);
         }
-        function = std::make_shared<Model>(std::make_shared<opset1::Concat>(inputs, 0), inputs_param);
+        function = std::make_shared<Model>(std::make_shared<op::v0::Concat>(inputs, 0), inputs_param);
 
         std::vector<float> ref_result;
         for (uint32_t i = 0; i < params.numInputs; i++) {
@@ -309,15 +378,15 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsInPlace2dTensor& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto add1 = std::make_shared<opset1::Add>(A, B);
-        const auto C = std::make_shared<opset1::Parameter>(params.C.type, params.C.shape);
-        const auto D = std::make_shared<opset1::Parameter>(params.D.type, params.D.shape);
-        const auto add2 = std::make_shared<opset1::Add>(C, D);
-        const auto subtract = std::make_shared<opset1::Subtract>(C, A);
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto add1 = std::make_shared<op::v1::Add>(A, B);
+        const auto C = std::make_shared<op::v0::Parameter>(params.C.type, params.C.shape);
+        const auto D = std::make_shared<op::v0::Parameter>(params.D.type, params.D.shape);
+        const auto add2 = std::make_shared<op::v1::Add>(C, D);
+        const auto subtract = std::make_shared<op::v1::Subtract>(C, A);
         const auto f =
-            std::make_shared<Model>(std::make_shared<opset1::Concat>(NodeVector{add1, add2, subtract}, params.axis),
+            std::make_shared<Model>(std::make_shared<op::v0::Concat>(NodeVector{add1, add2, subtract}, params.axis),
                                     ParameterVector{A, B, C, D});
         return f;
     }
@@ -426,16 +495,16 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsInPlacePropagate2dTensor& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto add1 = std::make_shared<opset1::Add>(A, B);
-        const auto C = std::make_shared<opset1::Parameter>(params.C.type, params.C.shape);
-        const auto D = std::make_shared<opset1::Parameter>(params.D.type, params.D.shape);
-        const auto add2 = std::make_shared<opset1::Add>(C, D);
-        const auto concat1 = std::make_shared<opset1::Concat>(NodeVector{add1, add2}, params.axis);
-        const auto subtract = std::make_shared<opset1::Subtract>(C, A);
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto add1 = std::make_shared<op::v1::Add>(A, B);
+        const auto C = std::make_shared<op::v0::Parameter>(params.C.type, params.C.shape);
+        const auto D = std::make_shared<op::v0::Parameter>(params.D.type, params.D.shape);
+        const auto add2 = std::make_shared<op::v1::Add>(C, D);
+        const auto concat1 = std::make_shared<op::v0::Concat>(NodeVector{add1, add2}, params.axis);
+        const auto subtract = std::make_shared<op::v1::Subtract>(C, A);
         const auto f =
-            std::make_shared<Model>(std::make_shared<opset1::Concat>(NodeVector{concat1, subtract}, params.axis),
+            std::make_shared<Model>(std::make_shared<op::v0::Concat>(NodeVector{concat1, subtract}, params.axis),
                                     ParameterVector{A, B, C, D});
         return f;
     }
@@ -534,12 +603,12 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsInPlaceTree1& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto add1 = std::make_shared<opset1::Add>(A, B);
-        const auto add2 = std::make_shared<opset1::Add>(A, B);
-        const auto concat = std::make_shared<opset1::Concat>(NodeVector{add1, add2}, params.axis);
-        const auto f = std::make_shared<Model>(std::make_shared<opset1::Add>(concat, concat), ParameterVector{A, B});
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto add1 = std::make_shared<op::v1::Add>(A, B);
+        const auto add2 = std::make_shared<op::v1::Add>(A, B);
+        const auto concat = std::make_shared<op::v0::Concat>(NodeVector{add1, add2}, params.axis);
+        const auto f = std::make_shared<Model>(std::make_shared<op::v1::Add>(concat, concat), ParameterVector{A, B});
         return f;
     }
 };
@@ -635,15 +704,15 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsInPlaceTree2& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto add1 = std::make_shared<opset1::Add>(A, B);
-        const auto add2 = std::make_shared<opset1::Add>(A, B);
-        const auto concat1 = std::make_shared<opset1::Concat>(NodeVector{add1, add2}, params.axis);
-        const auto concat2 = std::make_shared<opset1::Concat>(NodeVector{add1, add2}, params.axis);
-        const auto concat12 = std::make_shared<opset1::Concat>(NodeVector{concat1, concat2}, params.axis);
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto add1 = std::make_shared<op::v1::Add>(A, B);
+        const auto add2 = std::make_shared<op::v1::Add>(A, B);
+        const auto concat1 = std::make_shared<op::v0::Concat>(NodeVector{add1, add2}, params.axis);
+        const auto concat2 = std::make_shared<op::v0::Concat>(NodeVector{add1, add2}, params.axis);
+        const auto concat12 = std::make_shared<op::v0::Concat>(NodeVector{concat1, concat2}, params.axis);
         const auto f =
-            std::make_shared<Model>(std::make_shared<opset1::Add>(concat12, concat12), ParameterVector{A, B});
+            std::make_shared<Model>(std::make_shared<op::v1::Add>(concat12, concat12), ParameterVector{A, B});
         return f;
     }
 };
@@ -740,17 +809,17 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsInPlaceTree3& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto concat1 = std::make_shared<opset1::Concat>(NodeVector{A, B}, params.axis);
-        const auto concat2 = std::make_shared<opset1::Concat>(NodeVector{A, B}, params.axis);
-        const auto concat3 = std::make_shared<opset1::Concat>(NodeVector{A, B}, params.axis);
-        const auto concat4 = std::make_shared<opset1::Concat>(NodeVector{A, B}, params.axis);
-        const auto concat12 = std::make_shared<opset1::Concat>(NodeVector{concat1, concat2}, params.axis);
-        const auto concat34 = std::make_shared<opset1::Concat>(NodeVector{concat3, concat4}, params.axis);
-        const auto concat14 = std::make_shared<opset1::Concat>(NodeVector{concat12, concat34}, params.axis);
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto concat1 = std::make_shared<op::v0::Concat>(NodeVector{A, B}, params.axis);
+        const auto concat2 = std::make_shared<op::v0::Concat>(NodeVector{A, B}, params.axis);
+        const auto concat3 = std::make_shared<op::v0::Concat>(NodeVector{A, B}, params.axis);
+        const auto concat4 = std::make_shared<op::v0::Concat>(NodeVector{A, B}, params.axis);
+        const auto concat12 = std::make_shared<op::v0::Concat>(NodeVector{concat1, concat2}, params.axis);
+        const auto concat34 = std::make_shared<op::v0::Concat>(NodeVector{concat3, concat4}, params.axis);
+        const auto concat14 = std::make_shared<op::v0::Concat>(NodeVector{concat12, concat34}, params.axis);
         const auto f =
-            std::make_shared<Model>(std::make_shared<opset1::Add>(concat14, concat14), ParameterVector{A, B});
+            std::make_shared<Model>(std::make_shared<op::v1::Add>(concat14, concat14), ParameterVector{A, B});
         return f;
     }
 };
@@ -848,12 +917,12 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsInPlaceAddConcat& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto add1 = std::make_shared<opset1::Add>(A, B);
-        const auto add2 = std::make_shared<opset1::Add>(add1, add1);
-        const auto concat = std::make_shared<opset1::Concat>(NodeVector{add1, add2}, params.axis);
-        const auto add3 = std::make_shared<opset1::Add>(concat, concat);
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto add1 = std::make_shared<op::v1::Add>(A, B);
+        const auto add2 = std::make_shared<op::v1::Add>(add1, add1);
+        const auto concat = std::make_shared<op::v0::Concat>(NodeVector{add1, add2}, params.axis);
+        const auto add3 = std::make_shared<op::v1::Add>(concat, concat);
         const auto f = std::make_shared<Model>(add3, ParameterVector{A, B});
         return f;
     }
@@ -950,16 +1019,16 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsInPlaceAddConcat2& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto add1 = std::make_shared<opset1::Add>(A, B);
-        const auto add2 = std::make_shared<opset1::Add>(A, B);
-        const auto add3 = std::make_shared<opset1::Add>(A, B);
-        const auto add4 = std::make_shared<opset1::Add>(A, B);
-        const auto add5 = std::make_shared<opset1::Add>(A, B);
-        const auto concat1 = std::make_shared<opset1::Concat>(NodeVector{add1, add2, add3}, params.axis);
-        const auto concat2 = std::make_shared<opset1::Concat>(NodeVector{add4, add2, add5}, params.axis);
-        const auto add6 = std::make_shared<opset1::Add>(concat1, concat2);
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto add1 = std::make_shared<op::v1::Add>(A, B);
+        const auto add2 = std::make_shared<op::v1::Add>(A, B);
+        const auto add3 = std::make_shared<op::v1::Add>(A, B);
+        const auto add4 = std::make_shared<op::v1::Add>(A, B);
+        const auto add5 = std::make_shared<op::v1::Add>(A, B);
+        const auto concat1 = std::make_shared<op::v0::Concat>(NodeVector{add1, add2, add3}, params.axis);
+        const auto concat2 = std::make_shared<op::v0::Concat>(NodeVector{add4, add2, add5}, params.axis);
+        const auto add6 = std::make_shared<op::v1::Add>(concat1, concat2);
         const auto f = std::make_shared<Model>(add6, ParameterVector{A, B});
         return f;
     }
@@ -1061,10 +1130,10 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParams5d& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto C = std::make_shared<opset1::Parameter>(params.C.type, params.C.shape);
-        const auto concat = std::make_shared<opset1::Concat>(NodeVector{A, B, C}, params.axis);
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto C = std::make_shared<op::v0::Parameter>(params.C.type, params.C.shape);
+        const auto concat = std::make_shared<op::v0::Concat>(NodeVector{A, B, C}, params.axis);
         const auto f = std::make_shared<Model>(concat, ParameterVector{A, B, C});
         return f;
     }
@@ -1210,9 +1279,9 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsZeroLength1dLast& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto concat = std::make_shared<opset1::Concat>(NodeVector{A, B}, params.axis);
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto concat = std::make_shared<op::v0::Concat>(NodeVector{A, B}, params.axis);
         const auto f = std::make_shared<Model>(concat, ParameterVector{A, B});
         return f;
     }
@@ -1314,10 +1383,10 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsZeroLength1dMiddle& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto C = std::make_shared<opset1::Parameter>(params.C.type, params.C.shape);
-        const auto concat = std::make_shared<opset1::Concat>(NodeVector{A, B, C}, params.axis);
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto C = std::make_shared<op::v0::Parameter>(params.C.type, params.C.shape);
+        const auto concat = std::make_shared<op::v0::Concat>(NodeVector{A, B, C}, params.axis);
         const auto f = std::make_shared<Model>(concat, ParameterVector{A, B, C});
         return f;
     }
@@ -1409,8 +1478,8 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsZeroZero& params) {
-        const auto constant_1 = std::make_shared<opset1::Constant>(params.A.type, params.A.shape, params.A.data.data());
-        const auto concat_1 = std::make_shared<opset1::Concat>(NodeVector{constant_1, constant_1}, params.axis);
+        const auto constant_1 = std::make_shared<op::v0::Constant>(params.A.type, params.A.shape, params.A.data.data());
+        const auto concat_1 = std::make_shared<op::v0::Concat>(NodeVector{constant_1, constant_1}, params.axis);
         const auto f = std::make_shared<Model>(concat_1, ParameterVector{});
         return f;
     }
@@ -1511,10 +1580,10 @@ public:
 
 private:
     static std::shared_ptr<Model> CreateFunction(const ConcatParamsZeroLength4dMiddle& params) {
-        const auto A = std::make_shared<opset1::Parameter>(params.A.type, params.A.shape);
-        const auto B = std::make_shared<opset1::Parameter>(params.B.type, params.B.shape);
-        const auto C = std::make_shared<opset1::Parameter>(params.C.type, params.C.shape);
-        const auto concat = std::make_shared<opset1::Concat>(NodeVector{A, B, C}, params.axis);
+        const auto A = std::make_shared<op::v0::Parameter>(params.A.type, params.A.shape);
+        const auto B = std::make_shared<op::v0::Parameter>(params.B.type, params.B.shape);
+        const auto C = std::make_shared<op::v0::Parameter>(params.C.type, params.C.shape);
+        const auto concat = std::make_shared<op::v0::Concat>(NodeVector{A, B, C}, params.axis);
         const auto f = std::make_shared<Model>(concat, ParameterVector{A, B, C});
         return f;
     }

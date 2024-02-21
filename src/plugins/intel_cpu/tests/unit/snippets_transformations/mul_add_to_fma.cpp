@@ -5,10 +5,13 @@
 #include <gtest/gtest.h>
 #include <subgraph_simple.hpp>
 #include <transformations/snippets/x64/pass/mul_add_to_fma.hpp>
+#include <transformations/snippets/x64/shape_inference.hpp>
 #include <transformations/snippets/x64/op/fused_mul_add.hpp>
+#include <transformations/snippets/x64/shape_inference.hpp>
 #include "snippets/op/scalar.hpp"
 #include "lowering_utils.hpp"
-#include "snippets/pass_manager.hpp"
+#include "common_test_utils/common_utils.hpp"
+#include "snippets/pass/manager.hpp"
 
 namespace ov {
 namespace test {
@@ -28,8 +31,8 @@ public:
         : SnippetsFunctionBase(inputShapes),
           add_input_idx(add_input_idx),
           scalar_input(scalar_input) {
-        NGRAPH_CHECK(input_shapes.size() == 3, "Got invalid number of input shapes");
-        NGRAPH_CHECK(add_input_idx < 2, "Got invalid input idx for add operation");
+        OPENVINO_ASSERT(input_shapes.size() == 3, "Got invalid number of input shapes");
+        OPENVINO_ASSERT(add_input_idx < 2, "Got invalid input idx for add operation");
     }
 
 protected:
@@ -61,7 +64,7 @@ protected:
         ParameterVector parameters{data0, data1};
         std::shared_ptr<Node> data2;
         if (scalar_input) {
-            data2 = std::make_shared<ov::snippets::op::Scalar>(precision, Shape{}, 2.f);
+            data2 = std::make_shared<ov::snippets::op::Scalar>(precision, Shape{1}, 2.f);
         } else {
             auto parameter = std::make_shared<op::v0::Parameter>(precision, input_shapes[2]);
             parameters.push_back(parameter);
@@ -78,13 +81,13 @@ protected:
     }
 
     void validate_function(const std::shared_ptr<Model> &m) const override {
-        NGRAPH_CHECK(m != nullptr, "The test requires Model to be defined");
+        OPENVINO_ASSERT(m != nullptr, "The test requires Model to be defined");
         const auto &params = m->get_parameters();
-        NGRAPH_CHECK(params.size() == (scalar_input ? input_shapes.size() - 1 : input_shapes.size()),
-                    "Passed input shapes and produced function are inconsistent.");
-        for (size_t i = 0; i < params.size(); i++)
-            NGRAPH_CHECK(std::equal(input_shapes[i].begin(), input_shapes[i].end(), params[i]->get_shape().begin()),
+        OPENVINO_ASSERT(params.size() == (scalar_input ? input_shapes.size() - 1 : input_shapes.size()),
                         "Passed input shapes and produced function are inconsistent.");
+        for (size_t i = 0; i < params.size(); i++)
+            OPENVINO_ASSERT(std::equal(input_shapes[i].begin(), input_shapes[i].end(), params[i]->get_shape().begin()),
+                            "Passed input shapes and produced function are inconsistent.");
     }
 
 private:
@@ -110,15 +113,15 @@ public:
 
         std::ostringstream result;
         for (size_t i = 0; i < inputShapes.size(); i++)
-            result << "IS[" << i << "]=" << inputShapes[i] << "_";
-        result << "MS=" << master_shape << "_";
+            result << "IS[" << i << "]=" <<  ov::test::utils::partialShape2str({inputShapes[i]}) << "_";
+        result << "MS=" << ov::test::utils::partialShape2str({master_shape}) << "_";
         result << "add_input_idx=" << add_input_idx;
         return result.str();
     }
 
 protected:
     void SetUp() override {
-        using PassPosition = ov::snippets::pass::Manager::PassPosition;
+        using PassPosition = ov::snippets::pass::PassPosition;
         LoweringTests::SetUp();
         std::vector<PartialShape> inputShapes(3);
         size_t add_input_idx;
@@ -137,16 +140,18 @@ protected:
 
     std::shared_ptr<SnippetsFunctionBase> snippets_model;
     std::shared_ptr<ov::snippets::Generator> generator;
-    std::vector<ov::snippets::pass::Manager::PositionedPass> backend_passes;
+    std::vector<ov::snippets::pass::Manager::PositionedPassBase> backend_passes;
 };
 
 TEST_P(MulAddToFMATests, MulAddToFMATests) {
     auto subgraph = getLoweredSubgraph(snippets_model->getOriginal(),
                                        master_shape,
                                        backend_passes,
+                                       std::make_shared<ov::snippets::lowered::pass::PassConfig>(),
                                        {},
-                                       {},
-                                       generator);
+                                       generator,
+                                       8, 256,
+                                       std::make_shared<ov::snippets::CPUShapeInferSnippetsFactory>());
     model = subgraph->body_ptr();
     model_ref = snippets_model->getLowered();
 }

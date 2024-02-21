@@ -11,12 +11,13 @@
 #include <utility>
 #include <vector>
 
+#include "itt.hpp"
+#include "openvino/util/log.hpp"
 #include "openvino/pass/pattern/op/wrap_type.hpp"
 #include "openvino/pass/pattern/op/or.hpp"
 
 #include "low_precision/common/ie_lpt_exception.hpp"
 #include "low_precision/network_helper.hpp"
-#include "itt.hpp"
 
 namespace ov {
 namespace pass {
@@ -157,7 +158,9 @@ bool ReshapeTransformation::transform(TransformationContext& context, ov::pass::
 
     reshape = ov::as_type_ptr<ov::opset1::Reshape>(NetworkHelper::separateInStandaloneBranch(reshape, defaultPrecisions));
     reshapeDequantizationConstant(reshape, defaultPrecisions);
-    moveDequantizationAfter(context, reshape, NetworkHelper::getDequantization(reshape, defaultPrecisions, 0), false);
+    const auto newOperation = moveDequantizationAfter(context, reshape, NetworkHelper::getDequantization(reshape, defaultPrecisions, 0));
+
+    OPENVINO_DEBUG << "LPT: done: " << newOperation;
     return true;
 }
 
@@ -200,7 +203,7 @@ bool ReshapeTransformation::canBeTransformed(const TransformationContext& contex
         const auto inputs = op->get_output_target_inputs(0);
         if (inputs.size() == 1ul) {
             const auto consumer = inputs.begin()->get_node();
-            ignorePerTensorQuantizationCheck = ngraph::as_type<ov::opset1::MatMul>(consumer) != nullptr;
+            ignorePerTensorQuantizationCheck = ov::as_type<ov::opset1::MatMul>(consumer) != nullptr;
         }
     }
 

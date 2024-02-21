@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Intel Corporation
+// Copyright (C) 2018-2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,11 +8,12 @@
 #include <string>
 #include <unordered_map>
 
+#include "evaluator.hpp"
 #include "itt.hpp"
 #include "layout_utils.hpp"
-#include "ngraph/evaluator.hpp"
 #include "openvino/core/attribute_visitor.hpp"
 #include "openvino/core/except.hpp"
+#include "openvino/core/graph_util.hpp"
 #include "openvino/core/meta_data.hpp"
 #include "openvino/core/partial_shape.hpp"
 #include "openvino/op/parameter.hpp"
@@ -21,7 +22,6 @@
 #include "openvino/op/util/variable_extension.hpp"
 #include "openvino/pass/manager.hpp"
 #include "shared_node_info.hpp"
-#include "tensor_conversion_util.hpp"
 #include "transformations/smart_reshape/smart_reshape.hpp"
 
 using namespace std;
@@ -487,25 +487,6 @@ int64_t ov::Model::get_result_index(const Output<const Node>& value) const {
     return -1;
 }
 
-bool ov::Model::evaluate(const HostTensorVector& output_tensors, const HostTensorVector& input_tensors) const {
-    ov::EvaluationContext evaluation_context;
-    OPENVINO_SUPPRESS_DEPRECATED_START
-    return evaluate(output_tensors, input_tensors, evaluation_context);
-    OPENVINO_SUPPRESS_DEPRECATED_END
-}
-
-bool ov::Model::evaluate(const HostTensorVector& output_tensors,
-                         const HostTensorVector& input_tensors,
-                         EvaluationContext& evaluation_context) const {
-    OPENVINO_SUPPRESS_DEPRECATED_START
-    auto outputs = ov::util::wrap_tensors(output_tensors);
-    auto inputs = ov::util::wrap_tensors(input_tensors);
-    bool sts = evaluate(outputs, inputs, evaluation_context);
-    ov::util::update_output_host_tensors(output_tensors, outputs);
-    OPENVINO_SUPPRESS_DEPRECATED_END
-    return sts;
-}
-
 bool ov::Model::evaluate(ov::TensorVector& output_tensors, const ov::TensorVector& input_tensors) const {
     ov::EvaluationContext evaluation_context;
     return evaluate(output_tensors, input_tensors, evaluation_context);
@@ -516,8 +497,19 @@ bool ov::Model::evaluate(ov::TensorVector& output_tensors,
                          ov::EvaluationContext& evaluation_context) const {
     evaluation_context.emplace("VariableContext", ov::op::util::VariableContext());
     std::map<RawNodeOutput, ov::Tensor> value_map;
+    OPENVINO_ASSERT(input_tensors.size() == m_parameters.size(),
+                    "Cannot evaluate model! Number of tensors (",
+                    input_tensors.size(),
+                    ") is not equal to number of parameters (",
+                    m_parameters.size(),
+                    ").");
     for (size_t i = 0; i < m_parameters.size(); ++i) {
         value_map[m_parameters.at(i)->output(0)] = input_tensors.at(i);
+        OPENVINO_ASSERT(m_parameters.at(i)->get_partial_shape().is_dynamic() ||
+                            m_parameters.at(i)->get_partial_shape().to_shape() == input_tensors[i].get_shape(),
+                        "Cannot evaluate model! Tensor input shape and Parameter op with index ",
+                        i,
+                        " are mismatches.");
     }
     OutputVector outputs;
     std::map<RawNodeOutput, ov::Tensor> output_tensor_map;
@@ -530,8 +522,7 @@ bool ov::Model::evaluate(ov::TensorVector& output_tensors,
         outputs.push_back(m_sink);
     }
     // evaluate nodes
-    OPENVINO_SUPPRESS_DEPRECATED_START
-    ngraph::Evaluator<ov::Tensor> evaluator({}, value_map);
+    Evaluator<Tensor> evaluator({}, value_map);
     evaluator.set_universal_handler(
         [&output_tensor_map, &evaluation_context](Node* node,
                                                   const ov::TensorVector& input_tensors) -> ov::TensorVector {
@@ -539,7 +530,7 @@ bool ov::Model::evaluate(ov::TensorVector& output_tensors,
             for (const auto& v : node->outputs()) {
                 auto it = output_tensor_map.find(v);
                 if (it == output_tensor_map.end()) {
-                    output_tensors.push_back(util::wrap_tensor(v));
+                    output_tensors.emplace_back(v);
                 } else {
                     output_tensors.push_back(it->second);
                 }
@@ -554,13 +545,12 @@ bool ov::Model::evaluate(ov::TensorVector& output_tensors,
                 }
                 return output_tensors;
             } else {
-                OPENVINO_ASSERT(false, "Evaluation failed on ", node);
+                OPENVINO_THROW("Evaluation failed on ", node);
             }
         });
     for (const auto& value : outputs) {
         evaluator.evaluate(value);
     }
-    OPENVINO_SUPPRESS_DEPRECATED_END
     for (size_t i = 0; i < m_results.size(); ++i) {
         auto result = m_results.at(i)->output(0);
         output_tensors.at(i) = output_tensor_map[result];
@@ -955,9 +945,8 @@ ov::Output<ov::Node> ov::Model::add_output(const ov::Output<ov::Node>& port) {
 }
 
 std::shared_ptr<ov::Model> ov::Model::clone() const {
-    OPENVINO_SUPPRESS_DEPRECATED_START
-    return ov::clone_model(*this);
-    OPENVINO_SUPPRESS_DEPRECATED_END
+    std::unordered_map<ov::Node*, std::shared_ptr<ov::Node>> node_map;
+    return ov::clone_ov_model(*this, node_map);
 }
 
 bool ov::Model::has_rt_info(const std::vector<std::string>& args) const {
@@ -1149,7 +1138,7 @@ void ov::set_batch(const std::shared_ptr<ov::Model>& f, ov::Dimension batch_size
         auto batch_idx = bs_util::get_batch(layout, pshape);
         auto new_shape = param->get_partial_shape();
         new_shape[batch_idx] = batch_size;
-        new_shapes_map[f->input(i)] = new_shape;
+        new_shapes_map[f->input(i)] = std::move(new_shape);
     }
     try {
         f->reshape(new_shapes_map);

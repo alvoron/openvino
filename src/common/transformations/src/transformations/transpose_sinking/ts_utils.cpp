@@ -59,6 +59,7 @@ Output<Node> ChangeAxes(const Output<Node>& indices,
     copy_runtime_info(indices.get_node_shared_ptr(), gather);
     return gather;
 }
+
 Output<Node> ChangeAxes(const Output<Node>& indices,
                         const AxisVector& transpose_axis_order,
                         const std::shared_ptr<ov::op::v0::Constant>& axis) {
@@ -146,9 +147,11 @@ bool HasDynamicRankInput(const NodePtr& node) {
     return false;
 }
 
-ov::Rank::value_type GetMaxInputRank(const NodePtr& node) {
+ov::Rank::value_type GetMaxInputRank(const NodePtr& node, const std::vector<size_t>& input_indexes) {
     ov::Rank::value_type max_input_rank = 0;
-    for (auto& input_node : node->input_values()) {
+
+    for (const auto& idx : input_indexes) {
+        const auto& input_node = node->get_input_source_output(idx);
         const ov::Rank output_rank = input_node.get_partial_shape().rank();
         if (output_rank.is_dynamic())
             return -1;
@@ -184,6 +187,9 @@ AxisVector AlignTransposeOrder(const Output<Node>& output, const TransposeInputs
     }
     auto num_of_val = static_cast<int64_t>(shape_size(transpose_input_info.transpose_const->get_shape()));
     const auto rank = output.get_partial_shape().rank();
+    if (rank.is_dynamic()) {
+        return {};
+    }
     const auto rank_val = rank.get_length();
     AxisVector new_transpose_order;
     if (rank_val > num_of_val) {
@@ -212,7 +218,7 @@ bool UpdateInputTransposes(const NodePtr& main_node,
     if (transpose_input_info.isEmpty() || HasDynamicRankInput(main_node))
         return false;
 
-    const auto max_input_rank = GetMaxInputRank(main_node);
+    const auto max_input_rank = GetMaxInputRank(main_node, input_indexes);
     if (max_input_rank < 0)
         return false;
 
@@ -302,7 +308,7 @@ NodeVector InsertTransposeBeforeNode(const NodePtr& main_node,
 
     NodeVector new_nodes;
 
-    const auto max_input_rank = GetMaxInputRank(main_node);
+    const auto max_input_rank = GetMaxInputRank(main_node, input_indexes);
     if (max_input_rank < 0)
         return {};
 

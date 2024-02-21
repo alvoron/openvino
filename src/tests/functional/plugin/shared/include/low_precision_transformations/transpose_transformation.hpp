@@ -8,21 +8,21 @@
 #include <memory>
 
 #include "shared_test_classes/base/low_precision_transformations/layer_transformation.hpp"
-#include "lpt_ngraph_functions/common/dequantization_operations.hpp"
+#include "ov_lpt_models/common/dequantization_operations.hpp"
 
 namespace LayerTestsDefinitions {
 
 class TransposeTransformationTestValues {
 public:
-    ngraph::PartialShape inputShape;
+    ov::PartialShape inputShape;
     std::vector<int> transposeConstValues;
     ov::pass::low_precision::LayerTransformation::Params params;
-    ngraph::element::Type precisionBeforeFq;
-    ngraph::builder::subgraph::FakeQuantizeOnData fqOnData;
+    ov::element::Type precisionBeforeFq;
+    ov::builder::subgraph::FakeQuantizeOnData fqOnData;
 };
 
 typedef std::tuple<
-    ngraph::element::Type,
+    ov::element::Type,
     std::string,
     TransposeTransformationTestValues> TransposeTransformationParams;
 

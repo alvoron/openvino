@@ -15,17 +15,9 @@ auto configs = []() {
 auto autoBatchConfigs = []() {
     return std::vector<ov::AnyMap>{
         // explicit batch size 4 to avoid fallback to no auto-batching (i.e. plain GPU)
-        {{CONFIG_KEY(AUTO_BATCH_DEVICE_CONFIG), std::string(ov::test::utils::DEVICE_GPU) + "(4)"},
+        {{ov::device::priorities.name(), std::string(ov::test::utils::DEVICE_GPU) + "(4)"},
          // no timeout to avoid increasing the test time
-         {CONFIG_KEY(AUTO_BATCH_TIMEOUT), "0 "}}};
-};
-
-const std::vector<ov::AnyMap> autoConfigs = {
-    {ov::device::priorities(ov::test::utils::DEVICE_GPU)},
-#ifdef ENABLE_INTEL_CPU
-    {ov::device::priorities(ov::test::utils::DEVICE_CPU, ov::test::utils::DEVICE_GPU)},
-    {ov::device::priorities(ov::test::utils::DEVICE_GPU, ov::test::utils::DEVICE_CPU)},
-#endif
+         ov::auto_batch_timeout(0)}};
 };
 
 INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests, OVCompiledModelBaseTest,
@@ -40,9 +32,21 @@ INSTANTIATE_TEST_SUITE_P(smoke_AutoBatchBehaviorTests, OVCompiledModelBaseTest,
                                  ::testing::ValuesIn(autoBatchConfigs())),
                          OVCompiledModelBaseTest::getTestCaseName);
 
-INSTANTIATE_TEST_SUITE_P(smoke_Auto_BehaviorTests,
-                         OVAutoExecutableNetworkTest,
-                         ::testing::Combine(::testing::Values(ov::test::utils::DEVICE_AUTO),
-                                            ::testing::ValuesIn(autoConfigs)),
-                         OVCompiledModelBaseTest::getTestCaseName);
+
+std::vector<ov::element::Type> convert_types = {ov::element::f16,
+                                                ov::element::i64};
+
+INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests, CompiledModelSetType,
+                        ::testing::Combine(
+                                ::testing::ValuesIn(convert_types),
+                                ::testing::Values(ov::test::utils::DEVICE_GPU),
+                                ::testing::ValuesIn(configs())),
+                        CompiledModelSetType::getTestCaseName);
+
+INSTANTIATE_TEST_SUITE_P(smoke_AutoBatchBehaviorTests, CompiledModelSetType,
+                         ::testing::Combine(
+                                ::testing::ValuesIn(convert_types),
+                                ::testing::Values(ov::test::utils::DEVICE_BATCH),
+                                ::testing::ValuesIn(autoBatchConfigs())),
+                         CompiledModelSetType::getTestCaseName);
 }  // namespace

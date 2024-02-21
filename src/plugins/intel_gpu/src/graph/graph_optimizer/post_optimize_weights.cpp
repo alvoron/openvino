@@ -7,11 +7,9 @@
 #include "implementation_map.hpp"
 
 #include "convolution_inst.h"
-#include "binary_convolution_inst.h"
 #include "deconvolution_inst.h"
 #include "deformable_convolution_inst.h"
 #include "fully_connected_inst.h"
-#include "lstm_dynamic_input_inst.h"
 
 namespace cldnn {
 
@@ -20,11 +18,6 @@ post_optimize_weights::post_optimize_weights(reorder_factory& rf_ref)
 
 template<typename T> post_optimize_weights::weights_bias_offset post_optimize_weights::get_weights_bias_offset(const T& node) {
     return weights_bias_offset(node.get_primitive()->input.size(), program_helpers::wrap_if_single(node.get_primitive()->weights).size());
-}
-
-template <>
-post_optimize_weights::weights_bias_offset post_optimize_weights::get_weights_bias_offset<lstm_dynamic_input_node>(const lstm_dynamic_input_node& node) {
-    return weights_bias_offset(node.get_primitive()->input.size() + 1, program_helpers::wrap_if_single(node.get_primitive()->weights).size());
 }
 
 // function which prepares given primitive for weights optimization
@@ -79,16 +72,19 @@ void post_optimize_weights::optimize_weights(T& node, program& p) {
 
         if (weights_reorder_params != nullptr) {
             bool can_be_fused = prev_node.is_type<reorder>() &&
+                                prev_node.as<reorder>().is_simple_reorder() &&
                                 prev_node.get_users().size() == 1 &&
-                                prev_node.get_dependencies().size() == 1 &&
-                                !prev_node.has_fused_primitives() &&
-                                !prev_node.as<reorder>().has_mean() &&
-                                prev_node.as<reorder>().get_primitive()->subtract_per_feature.empty();
+                                prev_node.get_dependencies().size() == 1;
             if (can_be_fused) {
                 // Need to update input data_type for correct merging format reorder with precision reorder
-                data_types input_dtype = prev_node.get_input_layouts()[0].data_type;
                 auto updated_input_layout = weights_reorder_params->get_input_layout();
+                data_types input_dtype = prev_node.get_input_layout().data_type;
                 updated_input_layout.data_type = input_dtype;
+
+                // Need to update input format in case of fusing weights constant with transpose
+                format input_fmt = prev_node.get_input_layout().format;
+                updated_input_layout.format = from_weights_layout(to_weights_layout(input_fmt, false));
+
                 weights_reorder_params->set_input_layout(updated_input_layout);
                 auto weights_reorder = _rf.get_weights_reorder(prev_node.get_primitive()->input[0].pid,
                                                                weights_reorder_params);
@@ -121,16 +117,12 @@ void post_optimize_weights::run(program& p) {
     for (auto& node : p.get_processing_order()) {
         if (node->is_type<convolution>()) {
             optimize_weights(node->as<convolution>(), p);
-        } else if (node->is_type<binary_convolution>()) {
-            optimize_weights(node->as<binary_convolution>(), p);
         } else if (node->is_type<deconvolution>()) {
             optimize_weights(node->as<deconvolution>(), p);
         } else if (node->is_type<deformable_conv>()) {
             optimize_weights(node->as<deformable_conv>(), p);
         } else if (node->is_type<fully_connected>()) {
             optimize_weights(node->as<fully_connected>(), p);
-        } else if (node->is_type<lstm_dynamic_input>()) {
-            optimize_weights(node->as<lstm_dynamic_input>(), p);
         }
     }
 }

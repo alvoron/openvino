@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Intel Corporation
+// Copyright (C) 2018-2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -21,6 +21,10 @@
 #include "openvino/op/batch_norm.hpp"
 #include "openvino/op/batch_to_space.hpp"
 #include "openvino/op/binary_convolution.hpp"
+#include "openvino/op/bitwise_and.hpp"
+#include "openvino/op/bitwise_not.hpp"
+#include "openvino/op/bitwise_or.hpp"
+#include "openvino/op/bitwise_xor.hpp"
 #include "openvino/op/broadcast.hpp"
 #include "openvino/op/bucketize.hpp"
 #include "openvino/op/ceiling.hpp"
@@ -29,6 +33,7 @@
 #include "openvino/op/constant.hpp"
 #include "openvino/op/convert.hpp"
 #include "openvino/op/convert_like.hpp"
+#include "openvino/op/convert_promote_types.hpp"
 #include "openvino/op/convolution.hpp"
 #include "openvino/op/cos.hpp"
 #include "openvino/op/cosh.hpp"
@@ -57,6 +62,7 @@
 #include "openvino/op/experimental_detectron_topkrois.hpp"
 #include "openvino/op/extractimagepatches.hpp"
 #include "openvino/op/eye.hpp"
+#include "openvino/op/fake_convert.hpp"
 #include "openvino/op/fake_quantize.hpp"
 #include "openvino/op/floor.hpp"
 #include "openvino/op/floor_mod.hpp"
@@ -82,6 +88,7 @@
 #include "openvino/op/idft.hpp"
 #include "openvino/op/if.hpp"
 #include "openvino/op/interpolate.hpp"
+#include "openvino/op/inverse.hpp"
 #include "openvino/op/irdft.hpp"
 #include "openvino/op/is_finite.hpp"
 #include "openvino/op/is_inf.hpp"
@@ -106,9 +113,11 @@
 #include "openvino/op/mish.hpp"
 #include "openvino/op/mod.hpp"
 #include "openvino/op/multiclass_nms.hpp"
+#include "openvino/op/multinomial.hpp"
 #include "openvino/op/multiply.hpp"
 #include "openvino/op/mvn.hpp"
 #include "openvino/op/negative.hpp"
+#include "openvino/op/nms_rotated.hpp"
 #include "openvino/op/non_max_suppression.hpp"
 #include "openvino/op/non_zero.hpp"
 #include "openvino/op/normalize_l2.hpp"
@@ -150,6 +159,7 @@
 #include "openvino/op/roi_pooling.hpp"
 #include "openvino/op/roll.hpp"
 #include "openvino/op/round.hpp"
+#include "openvino/op/scaled_dot_product_attention.hpp"
 #include "openvino/op/scatter_elements_update.hpp"
 #include "openvino/op/scatter_nd_update.hpp"
 #include "openvino/op/scatter_update.hpp"

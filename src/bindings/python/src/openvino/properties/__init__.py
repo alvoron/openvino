@@ -1,36 +1,21 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2018-2023 Intel Corporation
+# Copyright (C) 2018-2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 # Enums
 from openvino._pyopenvino.properties import Affinity
+from openvino._pyopenvino.properties import CacheMode
 
 # Properties
-from openvino._pyopenvino.properties import enable_profiling
-from openvino._pyopenvino.properties import cache_dir
-from openvino._pyopenvino.properties import auto_batch_timeout
-from openvino._pyopenvino.properties import num_streams
-from openvino._pyopenvino.properties import inference_num_threads
-from openvino._pyopenvino.properties import compilation_num_threads
-from openvino._pyopenvino.properties import affinity
-from openvino._pyopenvino.properties import force_tbb_terminate
-from openvino._pyopenvino.properties import enable_mmap
-from openvino._pyopenvino.properties import supported_properties
-from openvino._pyopenvino.properties import available_devices
-from openvino._pyopenvino.properties import model_name
-from openvino._pyopenvino.properties import optimal_number_of_infer_requests
-from openvino._pyopenvino.properties import range_for_streams
-from openvino._pyopenvino.properties import optimal_batch_size
-from openvino._pyopenvino.properties import max_batch_size
-from openvino._pyopenvino.properties import range_for_async_infer_requests
-from openvino._pyopenvino.properties import execution_devices
-from openvino._pyopenvino.properties import loaded_from_cache
+import openvino._pyopenvino.properties as __properties
+from openvino.properties._properties import __make_properties
+__make_properties(__properties, __name__)
 
 # Submodules
-from openvino.runtime.properties import hint
-from openvino.runtime.properties import intel_cpu
-from openvino.runtime.properties import intel_gpu
-from openvino.runtime.properties import intel_auto
-from openvino.runtime.properties import device
-from openvino.runtime.properties import log
-from openvino.runtime.properties import streams
+from openvino.properties import hint
+from openvino.properties import intel_cpu
+from openvino.properties import intel_gpu
+from openvino.properties import intel_auto
+from openvino.properties import device
+from openvino.properties import log
+from openvino.properties import streams

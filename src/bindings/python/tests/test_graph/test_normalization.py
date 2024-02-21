@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2018-2023 Intel Corporation
+# Copyright (C) 2018-2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 import numpy as np
 
-from openvino.runtime import Type
-import openvino.runtime.opset12 as ov
+from openvino import Type
+import openvino.runtime.opset13 as ov
 
 
 def test_lrn():

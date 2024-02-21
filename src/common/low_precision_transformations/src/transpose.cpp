@@ -6,11 +6,12 @@
 
 #include <memory>
 
+#include "itt.hpp"
+#include "openvino/util/log.hpp"
 #include "openvino/pass/pattern/op/wrap_type.hpp"
 
 #include "low_precision/common/ie_lpt_exception.hpp"
 #include "low_precision/network_helper.hpp"
-#include "itt.hpp"
 
 namespace ov {
 namespace pass {
@@ -90,7 +91,9 @@ bool TransposeTransformation::transform(TransformationContext& context, ov::pass
 
     transpose = NetworkHelper::separateInStandaloneBranch(transpose, defaultPrecisions);
     transposeDequantizationConstant(transpose, defaultPrecisions);
-    moveDequantizationAfter(context, transpose, NetworkHelper::getDequantization(transpose, defaultPrecisions, 0), false);
+    const auto newOperation = moveDequantizationAfter(context, transpose, NetworkHelper::getDequantization(transpose, defaultPrecisions, 0));
+
+    OPENVINO_DEBUG << "LPT: done: " << newOperation;
     return true;
 }
 
@@ -116,7 +119,7 @@ bool TransposeTransformation::canBeTransformed(const TransformationContext& cont
             }
         }
         if (dequantization.multiply != nullptr) {
-            const auto mulConst = ov::as_type_ptr<ngraph::op::v0::Constant>(dequantization.multiplyConstant);
+            const auto mulConst = ov::as_type_ptr<ov::op::v0::Constant>(dequantization.multiplyConstant);
             if (!NetworkHelper::isScalarLike(mulConst)) {
                 return false;
             }

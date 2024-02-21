@@ -19,6 +19,8 @@ struct weight_bias_params : public base_params {
 
     bool compressed = false;
     bool has_decompression_zp = false;
+    bool scalar_zp = false;
+    float zp_value = 0.0f;
     DataTensor decompression_scale;
     DataTensor decompression_zero_point;
 
@@ -37,14 +39,6 @@ struct weight_bias_zero_point_params : public weight_bias_params {
 
     bool HasCompensation() const { return !compensation.empty(); }
     std::string to_cache_string_v2() const override;
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// weight_bias_optional_params
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct weight_bias_optional_params : optional_params {
-protected:
-    explicit weight_bias_optional_params(KernelType kt) : optional_params(kt) {}
 };
 
 }  // namespace kernel_selector

@@ -206,7 +206,7 @@ def mark_input_bins(node, names=('weights', 'biases'), start_port: int = 1):
     """
     Preparing necessary attributes for edges at input ports starting from start_port.
     It is applicable for convolution and other operations that have constant inputs which
-    are intended to be dumped as IE IR bin file.
+    are intended to be dumped as OV IR bin file.
     """
     for port, name in enumerate(names, start=start_port):
         if port in node.in_nodes() and node.in_node(port).has_valid('value'):
@@ -296,7 +296,7 @@ def get_shape_from_slice(input_shape: np.ndarray, slices: List) -> np.ndarray:
             in_idx += 1
         elif s is np.newaxis:
             output_shape.append(1)
-        elif type(s) in [int, np.int, np.int32, np.int64]:  # shrink_axis
+        elif type(s) in [int, np.int32, np.int64]:  # shrink_axis
             in_idx += 1
         elif s is Ellipsis:
             for idx in range(num_ellipsis_inserts):

@@ -12,8 +12,8 @@
 #include "low_precision/assign_and_read_value.hpp"
 
 #include "common_test_utils/ov_test_utils.hpp"
-#include "lpt_ngraph_functions/common/dequantization_operations.hpp"
-#include "lpt_ngraph_functions/assign_and_read_value_function.hpp"
+#include "ov_lpt_models/common/dequantization_operations.hpp"
+#include "ov_lpt_models/assign_and_read_value.hpp"
 #include "simple_low_precision_transformer.hpp"
 #include "low_precision/layer_transformation.hpp"
 
@@ -28,14 +28,14 @@ public:
     class Actual {
     public:
         std::vector<float> constantValue;
-        ngraph::builder::subgraph::DequantizationOperations dequantization;
+        ov::builder::subgraph::DequantizationOperations dequantization;
     };
 
     class Expected {
     public:
         std::vector<float> constantValue;
-        ngraph::builder::subgraph::DequantizationOperations dequantizationBefore;
-        ngraph::builder::subgraph::DequantizationOperations dequantizationAfter;
+        ov::builder::subgraph::DequantizationOperations dequantizationBefore;
+        ov::builder::subgraph::DequantizationOperations dequantizationAfter;
     };
 
     TestTransformationParams params;
@@ -60,11 +60,11 @@ public:
         const element::Type precisionBeforeDequantization = std::get<2>(GetParam());
         const size_t opsetVersion = std::get<3>(GetParam());
         const AssignTransformationTestValues testValues = std::get<4>(GetParam());
-        const std::vector<ov::element::Type> defaultPrecisions = ov::pass::low_precision::precision_set::int8_int16_int32_support;
+        const std::vector<ov::element::Type> defaultPrecisions = ov::pass::low_precision::precision_set::get_int8_int16_int32_support();
         const auto params = TestTransformationParams(testValues.params)
             .setDefaultPrecisions(defaultPrecisions);
 
-        actualFunction = ngraph::builder::subgraph::AssignAndReadValueFunction::getOriginal(
+        actualFunction = ov::builder::subgraph::AssignAndReadValueFunction::getOriginal(
             inputShape,
             precision,
             precisionBeforeDequantization,
@@ -77,7 +77,7 @@ public:
         transformer.add<ov::pass::low_precision::AssignAndReadValueTransformation, ov::op::v6::Assign>(actualFunction, params);
         transformer.transform(actualFunction);
 
-        referenceFunction = ngraph::builder::subgraph::AssignAndReadValueFunction::getReference(
+        referenceFunction = ov::builder::subgraph::AssignAndReadValueFunction::getReference(
                 inputShape,
                 precision,
                 precisionBeforeDequantization,

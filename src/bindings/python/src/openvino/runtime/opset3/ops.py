@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2018-2023 Intel Corporation
+# Copyright (C) 2018-2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """Factory functions for all openvino ops."""
@@ -575,9 +575,9 @@ def shuffle_channels(data: Node, axis: int, group: int, name: Optional[str] = No
 
     `data_reshaped` = reshape(`data`, [N, group, C / group, H * W])
 
-    `data_trnasposed` = transpose(`data_reshaped`, [0, 2, 1, 3])
+    `data_transposed` = transpose(`data_reshaped`, [0, 2, 1, 3])
 
-    `output` = reshape(`data_trnasposed`, [N, C, H, W])
+    `output` = reshape(`data_transposed`, [N, C, H, W])
 
     For example:
 

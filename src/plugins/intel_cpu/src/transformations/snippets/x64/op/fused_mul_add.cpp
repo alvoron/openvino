@@ -5,9 +5,7 @@
 #include "fused_mul_add.hpp"
 
 #include "snippets/itt.hpp"
-#include "ngraph/op/util/elementwise_args.hpp"
-
-#include <ngraph/runtime/host_tensor.hpp>
+#include "openvino/op/util/elementwise_args.hpp"
 
 using namespace ov;
 using namespace ov::intel_cpu;
@@ -28,8 +26,8 @@ std::shared_ptr<Node> FusedMulAdd::clone_with_new_inputs(const OutputVector& new
 
 void FusedMulAdd::validate_and_infer_types() {
     const auto input_size = get_input_size();
-    NGRAPH_CHECK(input_size == 3, "FusedMulAdd must have 3 inputs");
-    NGRAPH_CHECK(get_output_size() == 1, "FusedMulAdd must have only 1 output");
+    OPENVINO_ASSERT(input_size == 3, "FusedMulAdd must have 3 inputs");
+    OPENVINO_ASSERT(get_output_size() == 1, "FusedMulAdd must have only 1 output");
 
     const auto element_type = get_input_element_type(0);
     auto pshape = get_input_partial_shape(0);
@@ -42,4 +40,9 @@ void FusedMulAdd::validate_and_infer_types() {
                               "Argument shapes are inconsistent.");
     }
     set_output_type(0, element_type, pshape);
+}
+
+const ov::op::AutoBroadcastSpec& FusedMulAdd::get_autob() const {
+    static ov::op::AutoBroadcastSpec autob_spec(ov::op::AutoBroadcastType::NUMPY);
+    return autob_spec;
 }

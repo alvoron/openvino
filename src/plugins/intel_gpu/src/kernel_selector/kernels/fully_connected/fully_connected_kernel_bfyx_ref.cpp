@@ -4,6 +4,7 @@
 
 #include <vector>
 
+#include "common_types.h"
 #include "fully_connected_kernel_bfyx_ref.h"
 #include "kernel_selector_utils.h"
 
@@ -22,6 +23,8 @@ ParamsKey FullyConnected_bfyx_Ref::GetSupportedKey() const {
     k.EnableInputWeightsType(WeightsType::F32);
     k.EnableInputWeightsType(WeightsType::UINT8);
     k.EnableInputWeightsType(WeightsType::INT8);
+    k.EnableInputWeightsType(WeightsType::UINT4);
+    k.EnableInputWeightsType(WeightsType::INT4);
     k.EnableAllInputLayout();
     k.EnableDifferentInputWeightsTypes();
     k.EnableDifferentTypes();
@@ -41,7 +44,7 @@ ParamsKey FullyConnected_bfyx_Ref::GetSupportedKey() const {
 }
 
 FullyConnected_bfyx_Ref::DispatchData FullyConnected_bfyx_Ref::SetDefault(const fully_connected_params& params,
-                                                                          int) const {
+                                                                          int, int /*kernel_number*/) const {
     auto dispatchData = Parent::SetDefault(params);
 
     std::vector<size_t> global = { params.outputs[0].Feature().v, params.outputs[0].Batch().v, 1 };
@@ -55,7 +58,7 @@ FullyConnected_bfyx_Ref::DispatchData FullyConnected_bfyx_Ref::SetDefault(const 
     return dispatchData;
 }
 
-KernelsPriority FullyConnected_bfyx_Ref::GetKernelsPriority(const Params& /*params*/, const optional_params& /*options*/) const {
+KernelsPriority FullyConnected_bfyx_Ref::GetKernelsPriority(const Params& /*params*/) const {
     return DONT_USE_IF_HAVE_SOMETHING_ELSE;
 }
 
@@ -70,6 +73,11 @@ JitConstants FullyConnected_bfyx_Ref::GetJitConstants(const fully_connected_para
     jit.Merge(MakeTypeJitConstants(accumulator_dt, "ACCUMULATOR"));
     jit.Merge(MakeActivationJitConstants(params.activations, activation_dt, "_TYPED"));
 
+    auto wt = params.weights.GetDType();
+    if (wt == WeightsType::UINT4 || wt == WeightsType::INT4) {
+        jit.Merge(make_int4_packed_type_jit_constant("INT4_PACKED_TYPE", wt, 2));
+    }
+
     if (!params.fused_ops.empty()) {
         std::vector<std::string> idx_order = { "b", "ofm", "0", "0" };
         if (params.outputs[0].GetLayout() == DataLayout::bfyx)
@@ -80,13 +88,12 @@ JitConstants FullyConnected_bfyx_Ref::GetJitConstants(const fully_connected_para
     return jit;
 }
 
-KernelsData FullyConnected_bfyx_Ref::GetKernelsData(const Params& params, const optional_params& options) const {
+KernelsData FullyConnected_bfyx_Ref::GetKernelsData(const Params& params) const {
     auto& fc_params = static_cast<const fully_connected_params&>(params);
     KernelsData res = {};
     for (size_t i = 0; i < autoTuneOptions.size(); i++) {
         KernelsData kd = GetTunedKernelsDataByIndex(
             params,
-            options,
             fc_params.inputs[0].GetLayout(),
             WeightsLayout::oiyx,
             static_cast<int>(i));
@@ -98,8 +105,8 @@ KernelsData FullyConnected_bfyx_Ref::GetKernelsData(const Params& params, const 
     return res;
 }
 
-bool FullyConnected_bfyx_Ref::Validate(const Params& params, const optional_params& options) const {
-    if (!Parent::Validate(params, options))
+bool FullyConnected_bfyx_Ref::Validate(const Params& params) const {
+    if (!Parent::Validate(params))
         return false;
 
     // int8 validation

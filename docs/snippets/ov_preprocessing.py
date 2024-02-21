@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import openvino.runtime.properties as props
+import openvino.properties as props
 from openvino.preprocess import ResizeAlgorithm, ColorFormat
 from openvino import Layout, Type, serialize
 import openvino as ov
@@ -184,7 +184,7 @@ from openvino import serialize
 model_path = get_path_to_model()
 serialized_model_path = get_path_to_model()
 
-# ! [ov:preprocess:save]
+# ! [ov:preprocess:save_model]
 # ========  Step 0: read original model =========
 core = Core()
 model = core.read_model(model=model_path)
@@ -219,7 +219,7 @@ set_batch(model, 2)
 
 # ======== Step 3: Save the model ================
 serialize(model, serialized_model_path)
-# ! [ov:preprocess:save]
+# ! [ov:preprocess:save_model]
 
 path_to_cache_dir = get_temp_dir()
 

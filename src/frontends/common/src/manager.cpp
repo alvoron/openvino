@@ -4,11 +4,9 @@
 
 #include "openvino/frontend/manager.hpp"
 
-#include <openvino/util/env_util.hpp>
-#include <openvino/util/file_util.hpp>
-
 #include "openvino/frontend/exception.hpp"
 #include "openvino/util/env_util.hpp"
+#include "openvino/util/file_util.hpp"
 #include "openvino/util/log.hpp"
 #include "plugin_loader.hpp"
 #include "utils.hpp"
@@ -19,21 +17,6 @@ using namespace ov::frontend;
 class FrontEndManager::Impl {
     std::mutex m_loading_mutex;
     std::vector<PluginInfo> m_plugins;
-
-    // Note, static methods below are required to create an order of initialization of static variables
-    // e.g. if users (not encouraged) created ov::Model globally, we need to ensure proper order of initialization
-
-    /// \return map of shared object per frontend <frontend_name, frontend_so_ptr>
-    static std::unordered_map<std::string, std::shared_ptr<void>>& get_shared_objects_map() {
-        static std::unordered_map<std::string, std::shared_ptr<void>> shared_objects_map;
-        return shared_objects_map;
-    }
-
-    /// \return Mutex to guard access the shared object map
-    static std::mutex& get_shared_objects_mutex() {
-        static std::mutex shared_objects_map_mutex;
-        return shared_objects_map_mutex;
-    }
 
 public:
     Impl() {
@@ -46,10 +29,6 @@ public:
         auto fe_obj = std::make_shared<FrontEnd>();
         fe_obj->m_shared_object = std::make_shared<FrontEndSharedData>(plugin.get_so_pointer());
         fe_obj->m_actual = plugin.get_creator().m_creator();
-
-        std::lock_guard<std::mutex> guard(get_shared_objects_mutex());
-        get_shared_objects_map().emplace(plugin.get_creator().m_name, fe_obj->m_shared_object);
-
         return fe_obj;
     }
 
@@ -164,6 +143,7 @@ private:
             {".xml", {"ir", "ir"}},
             {".onnx", {"onnx", "onnx"}},
             {".pb", {"tf", "tensorflow"}},
+            {".pbtxt", {"tf", "tensorflow"}},
             {".tflite", {"tflite", "tensorflow_lite"}},
             {".pdmodel", {"paddle", "paddle"}},
             // {".ts", {"pytorch", "pytorch"}},
@@ -228,7 +208,7 @@ private:
     }
 
     void search_all_plugins() {
-        auto fe_lib_dir = get_frontend_library_path();
+        auto fe_lib_dir = ov::util::get_ov_lib_path();
         if (!fe_lib_dir.empty())
             find_plugins(fe_lib_dir, m_plugins);
     }

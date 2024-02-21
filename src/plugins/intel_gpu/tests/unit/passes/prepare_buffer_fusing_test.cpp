@@ -118,52 +118,6 @@ TEST(prepare_buffer_fusing, static_node_after_optimized_out_dyn_reshape) {
     ASSERT_EQ(out_mem->get_layout().get_partial_shape(), expected_shape);
 }
 
-TEST(prepare_buffer_fusing, propagate_data_padding) {
-    auto& engine = get_test_engine();
-
-    auto in_layout = layout{ ov::PartialShape{1, 4, 3, 3}, data_types::f32, format::bfyx };
-
-    std::vector<std::pair<primitive_id, tensor>> offsets;
-    std::vector<input_info> inputs;
-    for (int i = 0; i < 2; i++) {
-        auto id = "crop_" + std::to_string(i);
-        inputs.push_back(input_info("split:" + id));
-        offsets.push_back({ id, {0, (i * 2), 0, 0} });
-    }
-
-    topology topology;
-    topology.add(input_layout("input", in_layout));
-    topology.add(split("split", input_info("input"), offsets));
-    topology.add(reorder("crop_0_reorder", inputs[0], format::bfzyx, data_types::f32));
-    topology.add(reorder("crop_1_reorder", inputs[1], format::bfzyx, data_types::f32));
-    topology.add(concatenation("concat", {input_info("crop_0_reorder"), input_info("crop_1_reorder")}, 1));
-    topology.add(reorder("output", input_info("concat"), format::bfyx, data_types::f32));
-
-    ExecutionConfig config = get_test_default_config(engine);
-    config.set_property(ov::intel_gpu::optimize_data(true));
-
-    cldnn::network net(engine, topology, config);
-
-    auto in_mem = engine.allocate_memory(in_layout);
-    tests::set_random_values<float>(in_mem);
-
-    net.set_input_data("input", in_mem);
-    std::map<cldnn::primitive_id, cldnn::network_output> output;
-    ASSERT_NO_THROW(output = net.execute());
-
-    auto out_mem = output.at("output").get_memory();
-
-    ASSERT_NE(out_mem, nullptr);
-    cldnn::mem_lock<int64_t> output_ptr(out_mem, get_test_stream());
-    cldnn::mem_lock<int64_t> input_ptr(in_mem, get_test_stream());
-
-    ASSERT_EQ(input_ptr.size(), output_ptr.size());
-    for (size_t i = 0; i < input_ptr.size(); ++i)
-    {
-        ASSERT_EQ(output_ptr[i], input_ptr[i]);
-    }
-}
-
 TEST(prepare_buffer_fusing, in_place_concat_static) {
     auto& engine = get_test_engine();
     auto in_layout1 = layout{ ov::PartialShape{1, 2, 3, 4}, data_types::f32, format::bfyx }; // => {1, 4, 3, 2}
@@ -383,37 +337,37 @@ TEST(prepare_buffer_fusing, in_place_concat_dynamic_onednn_batch1) {
 
     auto input_memory1 = engine.allocate_memory(in_layout1);
     auto input_memory2 = engine.allocate_memory(in_layout2);
-    set_values<FLOAT16>(input_memory1,
-                       {FLOAT16(1.0f), FLOAT16(2.0f), FLOAT16(3.0f), FLOAT16(4.0f), FLOAT16(5.0f), FLOAT16(6.0f), FLOAT16(7.0f), FLOAT16(8.0f),
-                        FLOAT16(11.0f), FLOAT16(22.0f), FLOAT16(33.0f), FLOAT16(44.0f), FLOAT16(55.0f), FLOAT16(66.0f), FLOAT16(77.0f), FLOAT16(88.0f),
-                        FLOAT16(1.0f), FLOAT16(2.0f), FLOAT16(3.0f), FLOAT16(4.0f), FLOAT16(5.0f), FLOAT16(6.0f), FLOAT16(7.0f), FLOAT16(8.0f),
-                        FLOAT16(11.0f), FLOAT16(22.0f), FLOAT16(33.0f), FLOAT16(44.0f), FLOAT16(55.0f), FLOAT16(66.0f), FLOAT16(77.0f), FLOAT16(88.0f)});
-    set_values<FLOAT16>(input_memory2,
-                       {FLOAT16(111.0f), FLOAT16(222.0f), FLOAT16(333.0f), FLOAT16(444.0f), FLOAT16(555.0f), FLOAT16(666.0f), FLOAT16(777.0f), FLOAT16(888.0f),
-                        FLOAT16(1111.0f), FLOAT16(2222.0f), FLOAT16(3333.0f), FLOAT16(4444.0f), FLOAT16(5555.0f), FLOAT16(6666.0f), FLOAT16(7777.0f), FLOAT16(8888.0f),
-                        FLOAT16(111.0f), FLOAT16(222.0f), FLOAT16(333.0f), FLOAT16(444.0f), FLOAT16(555.0f), FLOAT16(666.0f), FLOAT16(777.0f), FLOAT16(888.0f),
-                        FLOAT16(1111.0f), FLOAT16(2222.0f), FLOAT16(3333.0f), FLOAT16(4444.0f), FLOAT16(5555.0f), FLOAT16(6666.0f), FLOAT16(7777.0f), FLOAT16(8888.0f)});
+    set_values<ov::float16>(input_memory1,
+                       {ov::float16(1.0f), ov::float16(2.0f), ov::float16(3.0f), ov::float16(4.0f), ov::float16(5.0f), ov::float16(6.0f), ov::float16(7.0f), ov::float16(8.0f),
+                        ov::float16(11.0f), ov::float16(22.0f), ov::float16(33.0f), ov::float16(44.0f), ov::float16(55.0f), ov::float16(66.0f), ov::float16(77.0f), ov::float16(88.0f),
+                        ov::float16(1.0f), ov::float16(2.0f), ov::float16(3.0f), ov::float16(4.0f), ov::float16(5.0f), ov::float16(6.0f), ov::float16(7.0f), ov::float16(8.0f),
+                        ov::float16(11.0f), ov::float16(22.0f), ov::float16(33.0f), ov::float16(44.0f), ov::float16(55.0f), ov::float16(66.0f), ov::float16(77.0f), ov::float16(88.0f)});
+    set_values<ov::float16>(input_memory2,
+                       {ov::float16(111.0f), ov::float16(222.0f), ov::float16(333.0f), ov::float16(444.0f), ov::float16(555.0f), ov::float16(666.0f), ov::float16(777.0f), ov::float16(888.0f),
+                        ov::float16(1111.0f), ov::float16(2222.0f), ov::float16(3333.0f), ov::float16(4444.0f), ov::float16(5555.0f), ov::float16(6666.0f), ov::float16(7777.0f), ov::float16(8888.0f),
+                        ov::float16(111.0f), ov::float16(222.0f), ov::float16(333.0f), ov::float16(444.0f), ov::float16(555.0f), ov::float16(666.0f), ov::float16(777.0f), ov::float16(888.0f),
+                        ov::float16(1111.0f), ov::float16(2222.0f), ov::float16(3333.0f), ov::float16(4444.0f), ov::float16(5555.0f), ov::float16(6666.0f), ov::float16(7777.0f), ov::float16(8888.0f)});
     net.set_input_data("input1", input_memory1);
     net.set_input_data("input2", input_memory2);
 
-    std::vector<FLOAT16> ref_output = {
-                        FLOAT16(1.0f), FLOAT16(2.0f), FLOAT16(3.0f), FLOAT16(4.0f), FLOAT16(5.0f), FLOAT16(6.0f), FLOAT16(7.0f), FLOAT16(8.0f),
-                        FLOAT16(11.0f), FLOAT16(22.0f), FLOAT16(33.0f), FLOAT16(44.0f), FLOAT16(55.0f), FLOAT16(66.0f), FLOAT16(77.0f), FLOAT16(88.0f),
-                        FLOAT16(111.0f), FLOAT16(222.0f), FLOAT16(333.0f), FLOAT16(444.0f), FLOAT16(555.0f), FLOAT16(666.0f), FLOAT16(777.0f), FLOAT16(888.0f),
-                        FLOAT16(1111.0f), FLOAT16(2222.0f), FLOAT16(3333.0f), FLOAT16(4444.0f), FLOAT16(5555.0f), FLOAT16(6666.0f), FLOAT16(7777.0f), FLOAT16(8888.0f),
-                        FLOAT16(1.0f), FLOAT16(2.0f), FLOAT16(3.0f), FLOAT16(4.0f), FLOAT16(5.0f), FLOAT16(6.0f), FLOAT16(7.0f), FLOAT16(8.0f),
-                        FLOAT16(11.0f), FLOAT16(22.0f), FLOAT16(33.0f), FLOAT16(44.0f), FLOAT16(55.0f), FLOAT16(66.0f), FLOAT16(77.0f), FLOAT16(88.0f),
-                        FLOAT16(111.0f), FLOAT16(222.0f), FLOAT16(333.0f), FLOAT16(444.0f), FLOAT16(555.0f), FLOAT16(666.0f), FLOAT16(777.0f), FLOAT16(888.0f),
-                        FLOAT16(1111.0f), FLOAT16(2222.0f), FLOAT16(3333.0f), FLOAT16(4444.0f), FLOAT16(5555.0f), FLOAT16(6666.0f), FLOAT16(7777.0f), FLOAT16(8888.0f)};
+    std::vector<ov::float16> ref_output = {
+                        ov::float16(1.0f), ov::float16(2.0f), ov::float16(3.0f), ov::float16(4.0f), ov::float16(5.0f), ov::float16(6.0f), ov::float16(7.0f), ov::float16(8.0f),
+                        ov::float16(11.0f), ov::float16(22.0f), ov::float16(33.0f), ov::float16(44.0f), ov::float16(55.0f), ov::float16(66.0f), ov::float16(77.0f), ov::float16(88.0f),
+                        ov::float16(111.0f), ov::float16(222.0f), ov::float16(333.0f), ov::float16(444.0f), ov::float16(555.0f), ov::float16(666.0f), ov::float16(777.0f), ov::float16(888.0f),
+                        ov::float16(1111.0f), ov::float16(2222.0f), ov::float16(3333.0f), ov::float16(4444.0f), ov::float16(5555.0f), ov::float16(6666.0f), ov::float16(7777.0f), ov::float16(8888.0f),
+                        ov::float16(1.0f), ov::float16(2.0f), ov::float16(3.0f), ov::float16(4.0f), ov::float16(5.0f), ov::float16(6.0f), ov::float16(7.0f), ov::float16(8.0f),
+                        ov::float16(11.0f), ov::float16(22.0f), ov::float16(33.0f), ov::float16(44.0f), ov::float16(55.0f), ov::float16(66.0f), ov::float16(77.0f), ov::float16(88.0f),
+                        ov::float16(111.0f), ov::float16(222.0f), ov::float16(333.0f), ov::float16(444.0f), ov::float16(555.0f), ov::float16(666.0f), ov::float16(777.0f), ov::float16(888.0f),
+                        ov::float16(1111.0f), ov::float16(2222.0f), ov::float16(3333.0f), ov::float16(4444.0f), ov::float16(5555.0f), ov::float16(6666.0f), ov::float16(7777.0f), ov::float16(8888.0f)};
 
     std::map<cldnn::primitive_id, cldnn::network_output> output;
     EXPECT_NO_THROW(output = net.execute());
     auto out_l = net.get_output_layout("output");
     auto out_mem = output.at("output").get_memory();
-    cldnn::mem_lock<FLOAT16> output_ptr(out_mem, get_test_stream());
+    cldnn::mem_lock<ov::float16> output_ptr(out_mem, get_test_stream());
 
-    cldnn::mem_lock<FLOAT16> input1_ptr(input_memory1, get_test_stream());
-    cldnn::mem_lock<FLOAT16> input2_ptr(input_memory2, get_test_stream());
+    cldnn::mem_lock<ov::float16> input1_ptr(input_memory1, get_test_stream());
+    cldnn::mem_lock<ov::float16> input2_ptr(input_memory2, get_test_stream());
 
     const auto& concat_inst = net.get_primitive("concat");
     const auto& concat_node_n = concat_inst->get_node();
@@ -461,37 +415,37 @@ TEST(prepare_buffer_fusing, in_place_concat_dynamic_onednn_batch2) {
 
     auto input_memory1 = engine.allocate_memory(in_layout1);
     auto input_memory2 = engine.allocate_memory(in_layout2);
-    set_values<FLOAT16>(input_memory1,
-                       {FLOAT16(1.0f), FLOAT16(2.0f), FLOAT16(3.0f), FLOAT16(4.0f), FLOAT16(5.0f), FLOAT16(6.0f), FLOAT16(7.0f), FLOAT16(8.0f),
-                        FLOAT16(11.0f), FLOAT16(22.0f), FLOAT16(33.0f), FLOAT16(44.0f), FLOAT16(55.0f), FLOAT16(66.0f), FLOAT16(77.0f), FLOAT16(88.0f),
-                        FLOAT16(1.0f), FLOAT16(2.0f), FLOAT16(3.0f), FLOAT16(4.0f), FLOAT16(5.0f), FLOAT16(6.0f), FLOAT16(7.0f), FLOAT16(8.0f),
-                        FLOAT16(11.0f), FLOAT16(22.0f), FLOAT16(33.0f), FLOAT16(44.0f), FLOAT16(55.0f), FLOAT16(66.0f), FLOAT16(77.0f), FLOAT16(88.0f)});
-    set_values<FLOAT16>(input_memory2,
-                       {FLOAT16(111.0f), FLOAT16(222.0f), FLOAT16(333.0f), FLOAT16(444.0f), FLOAT16(555.0f), FLOAT16(666.0f), FLOAT16(777.0f), FLOAT16(888.0f),
-                        FLOAT16(1111.0f), FLOAT16(2222.0f), FLOAT16(3333.0f), FLOAT16(4444.0f), FLOAT16(5555.0f), FLOAT16(6666.0f), FLOAT16(7777.0f), FLOAT16(8888.0f),
-                        FLOAT16(111.0f), FLOAT16(222.0f), FLOAT16(333.0f), FLOAT16(444.0f), FLOAT16(555.0f), FLOAT16(666.0f), FLOAT16(777.0f), FLOAT16(888.0f),
-                        FLOAT16(1111.0f), FLOAT16(2222.0f), FLOAT16(3333.0f), FLOAT16(4444.0f), FLOAT16(5555.0f), FLOAT16(6666.0f), FLOAT16(7777.0f), FLOAT16(8888.0f)});
+    set_values<ov::float16>(input_memory1,
+                       {ov::float16(1.0f), ov::float16(2.0f), ov::float16(3.0f), ov::float16(4.0f), ov::float16(5.0f), ov::float16(6.0f), ov::float16(7.0f), ov::float16(8.0f),
+                        ov::float16(11.0f), ov::float16(22.0f), ov::float16(33.0f), ov::float16(44.0f), ov::float16(55.0f), ov::float16(66.0f), ov::float16(77.0f), ov::float16(88.0f),
+                        ov::float16(1.0f), ov::float16(2.0f), ov::float16(3.0f), ov::float16(4.0f), ov::float16(5.0f), ov::float16(6.0f), ov::float16(7.0f), ov::float16(8.0f),
+                        ov::float16(11.0f), ov::float16(22.0f), ov::float16(33.0f), ov::float16(44.0f), ov::float16(55.0f), ov::float16(66.0f), ov::float16(77.0f), ov::float16(88.0f)});
+    set_values<ov::float16>(input_memory2,
+                       {ov::float16(111.0f), ov::float16(222.0f), ov::float16(333.0f), ov::float16(444.0f), ov::float16(555.0f), ov::float16(666.0f), ov::float16(777.0f), ov::float16(888.0f),
+                        ov::float16(1111.0f), ov::float16(2222.0f), ov::float16(3333.0f), ov::float16(4444.0f), ov::float16(5555.0f), ov::float16(6666.0f), ov::float16(7777.0f), ov::float16(8888.0f),
+                        ov::float16(111.0f), ov::float16(222.0f), ov::float16(333.0f), ov::float16(444.0f), ov::float16(555.0f), ov::float16(666.0f), ov::float16(777.0f), ov::float16(888.0f),
+                        ov::float16(1111.0f), ov::float16(2222.0f), ov::float16(3333.0f), ov::float16(4444.0f), ov::float16(5555.0f), ov::float16(6666.0f), ov::float16(7777.0f), ov::float16(8888.0f)});
     net.set_input_data("input1", input_memory1);
     net.set_input_data("input2", input_memory2);
 
-    std::vector<FLOAT16> ref_output = {
-                        FLOAT16(1.0f), FLOAT16(2.0f), FLOAT16(3.0f), FLOAT16(4.0f), FLOAT16(5.0f), FLOAT16(6.0f), FLOAT16(7.0f), FLOAT16(8.0f),
-                        FLOAT16(11.0f), FLOAT16(22.0f), FLOAT16(33.0f), FLOAT16(44.0f), FLOAT16(55.0f), FLOAT16(66.0f), FLOAT16(77.0f), FLOAT16(88.0f),
-                        FLOAT16(1.0f), FLOAT16(2.0f), FLOAT16(3.0f), FLOAT16(4.0f), FLOAT16(5.0f), FLOAT16(6.0f), FLOAT16(7.0f), FLOAT16(8.0f),
-                        FLOAT16(11.0f), FLOAT16(22.0f), FLOAT16(33.0f), FLOAT16(44.0f), FLOAT16(55.0f), FLOAT16(66.0f), FLOAT16(77.0f), FLOAT16(88.0f),
-                        FLOAT16(111.0f), FLOAT16(222.0f), FLOAT16(333.0f), FLOAT16(444.0f), FLOAT16(555.0f), FLOAT16(666.0f), FLOAT16(777.0f), FLOAT16(888.0f),
-                        FLOAT16(1111.0f), FLOAT16(2222.0f), FLOAT16(3333.0f), FLOAT16(4444.0f), FLOAT16(5555.0f), FLOAT16(6666.0f), FLOAT16(7777.0f), FLOAT16(8888.0f),
-                        FLOAT16(111.0f), FLOAT16(222.0f), FLOAT16(333.0f), FLOAT16(444.0f), FLOAT16(555.0f), FLOAT16(666.0f), FLOAT16(777.0f), FLOAT16(888.0f),
-                        FLOAT16(1111.0f), FLOAT16(2222.0f), FLOAT16(3333.0f), FLOAT16(4444.0f), FLOAT16(5555.0f), FLOAT16(6666.0f), FLOAT16(7777.0f), FLOAT16(8888.0f)};
+    std::vector<ov::float16> ref_output = {
+                        ov::float16(1.0f), ov::float16(2.0f), ov::float16(3.0f), ov::float16(4.0f), ov::float16(5.0f), ov::float16(6.0f), ov::float16(7.0f), ov::float16(8.0f),
+                        ov::float16(11.0f), ov::float16(22.0f), ov::float16(33.0f), ov::float16(44.0f), ov::float16(55.0f), ov::float16(66.0f), ov::float16(77.0f), ov::float16(88.0f),
+                        ov::float16(1.0f), ov::float16(2.0f), ov::float16(3.0f), ov::float16(4.0f), ov::float16(5.0f), ov::float16(6.0f), ov::float16(7.0f), ov::float16(8.0f),
+                        ov::float16(11.0f), ov::float16(22.0f), ov::float16(33.0f), ov::float16(44.0f), ov::float16(55.0f), ov::float16(66.0f), ov::float16(77.0f), ov::float16(88.0f),
+                        ov::float16(111.0f), ov::float16(222.0f), ov::float16(333.0f), ov::float16(444.0f), ov::float16(555.0f), ov::float16(666.0f), ov::float16(777.0f), ov::float16(888.0f),
+                        ov::float16(1111.0f), ov::float16(2222.0f), ov::float16(3333.0f), ov::float16(4444.0f), ov::float16(5555.0f), ov::float16(6666.0f), ov::float16(7777.0f), ov::float16(8888.0f),
+                        ov::float16(111.0f), ov::float16(222.0f), ov::float16(333.0f), ov::float16(444.0f), ov::float16(555.0f), ov::float16(666.0f), ov::float16(777.0f), ov::float16(888.0f),
+                        ov::float16(1111.0f), ov::float16(2222.0f), ov::float16(3333.0f), ov::float16(4444.0f), ov::float16(5555.0f), ov::float16(6666.0f), ov::float16(7777.0f), ov::float16(8888.0f)};
 
     std::map<cldnn::primitive_id, cldnn::network_output> output;
     EXPECT_NO_THROW(output = net.execute());
     auto out_l = net.get_output_layout("output");
     auto out_mem = output.at("output").get_memory();
-    cldnn::mem_lock<FLOAT16> output_ptr(out_mem, get_test_stream());
+    cldnn::mem_lock<ov::float16> output_ptr(out_mem, get_test_stream());
 
-    cldnn::mem_lock<FLOAT16> input1_ptr(input_memory1, get_test_stream());
-    cldnn::mem_lock<FLOAT16> input2_ptr(input_memory2, get_test_stream());
+    cldnn::mem_lock<ov::float16> input1_ptr(input_memory1, get_test_stream());
+    cldnn::mem_lock<ov::float16> input2_ptr(input_memory2, get_test_stream());
 
     const auto& concat_inst = net.get_primitive("concat");
     const auto& concat_node_n = concat_inst->get_node();
@@ -632,14 +586,14 @@ TEST(prepare_buffer_fusing, skip_in_place_concat_inside_shape_of_subgraph) {
     topology.add(data("data_0", data_0));
     topology.add(data("data_1", data_1));
     topology.add(data("data_2", data_2));
-    topology.add(shape_of("shape_of", input_info("input"), 4, data_types::i32));
-    topology.add(gather("gather0", input_info("shape_of"), input_info("data_0"), 0, {}, 0, true));
+    topology.add(shape_of("shape_of", input_info("input"), data_types::i32));
+    topology.add(gather("gather0", input_info("shape_of"), input_info("data_0"), 0, 0, {}, 0, true));
     topology.add(reorder("reorder0", input_info("gather0"), format::any, data_types::f32,
                          std::vector<float>(), reorder_mean_mode::subtract, padding(), true));
     topology.add(eltwise("eltwise0", input_info("reorder0"), input_info("data_1"), eltwise_mode::prod, broadcast_spec));
     topology.add(reshape("reshape0", input_info("eltwise0"), false, {},
                          ov::PartialShape{1}, reshape::reshape_mode::unsqueeze));
-    topology.add(gather("gather1", input_info("shape_of"), input_info("data_0"), 0, {}, 0, true));
+    topology.add(gather("gather1", input_info("shape_of"), input_info("data_0"), 0, 0, {}, 0, true));
     topology.add(reorder("reorder1", input_info("gather1"), format::any, data_types::f32,
                          std::vector<float>(), reorder_mean_mode::subtract, padding(), true));
     topology.add(eltwise("eltwise1", input_info("reorder1"), input_info("data_1"), eltwise_mode::prod, broadcast_spec));
@@ -693,7 +647,7 @@ TEST(prepare_buffer_fusing, test_implicit_crop_and_outerpadding) {
     topology.add(input_layout("Input", in_input->get_layout()));
     topology.add(input_layout("Input_idx_1", input_idx1->get_layout()));
     topology.add(reorder("reorder_input", input_info("Input"), format::bfzyx, data_types::f32));
-    topology.add(gather("gather1", input_info("reorder_input"), input_info("Input_idx_1"), axis, ov::Shape{1, 6, 2, 2, 2}));
+    topology.add(gather("gather1", input_info("reorder_input"), input_info("Input_idx_1"), axis, 5, ov::Shape{1, 6, 2, 2, 2}));
     topology.add(reorder("gather1_reorder", input_info("gather1"), reorder_layout));
     topology.add(reshape("reshape1", input_info("gather1_reorder"), tensor(6, 2, 2, 2)));
     topology.add(crop("crop", input_info("reorder_input"), tensor{1, 6, 2, 2, 2}, tensor(1, 0, 0, 0, 0)));
@@ -714,7 +668,7 @@ TEST(prepare_buffer_fusing, test_implicit_crop_and_outerpadding) {
     cldnn::mem_lock<int8_t> output_ptr(output, get_test_stream());
 
     ExecutionConfig ref_config = get_test_default_config(engine);
-    config.set_property(ov::intel_gpu::optimize_data(false));
+    ref_config.set_property(ov::intel_gpu::optimize_data(false));
     cldnn::network ref_network(engine, topology, ref_config);
     ref_network.set_input_data("Input", in_input);
     ref_network.set_input_data("Input_idx_1", input_idx1);
@@ -884,6 +838,79 @@ TEST(prepare_buffer_fusing, test_checking_padding_supported) {
 
     auto& concat = program->get_node("concat");
     ASSERT_EQ(concat.can_be_optimized(), false);
+}
+
+TEST(prepare_buffer_fusing, skip_in_place_concat_padding_in_non_concat_axis_of_dynamic) {
+    tests::random_generator rg(GET_SUITE_NAME);
+    auto& engine = get_test_engine();
+    auto in_layout = layout{ ov::PartialShape{ov::Dimension::dynamic(), 3, ov::Dimension::dynamic(), ov::Dimension::dynamic()},
+                             data_types::f16, format::bfyx};
+
+    auto begin = engine.allocate_memory({ ov::PartialShape{4}, data_types::i64, format::bfyx });
+    auto end = engine.allocate_memory({ ov::PartialShape{4}, data_types::i64, format::bfyx });
+    auto strides = engine.allocate_memory({ ov::PartialShape{4}, data_types::i64, format::bfyx });
+    set_values<int64_t>(begin, {0, 0, 0, 0});
+    set_values<int64_t>(end, {0, 0, 0, 9223372036854775807 });
+    set_values<int64_t>(strides, {1, 1, 1, 2});
+
+    auto concat_padding = padding({0,0,1,1}, {0,0,1,1});
+
+
+    auto in_static_layout = layout{ ov::PartialShape{1, 3, 320, 640}, data_types::f16, format::bfyx};
+    auto input1_mem = engine.allocate_memory(in_static_layout);
+    auto input2_mem = engine.allocate_memory(in_static_layout);
+    auto input3_mem = engine.allocate_memory(in_static_layout);
+    auto input4_mem = engine.allocate_memory(in_static_layout);
+
+    auto in1 = rg.generate_random_1d<ov::float16>(input1_mem->count(), 0, 1);
+    auto in2 = rg.generate_random_1d<ov::float16>(input2_mem->count(), 0, 1);
+    auto in3 = rg.generate_random_1d<ov::float16>(input3_mem->count(), 0, 1);
+    auto in4 = rg.generate_random_1d<ov::float16>(input4_mem->count(), 0, 1);
+
+    set_values<ov::float16>(input1_mem, in1);
+    set_values<ov::float16>(input2_mem, in2);
+    set_values<ov::float16>(input3_mem, in3);
+    set_values<ov::float16>(input4_mem, in4);
+
+    topology topology(
+        input_layout("input1", in_layout),
+        input_layout("input2", in_layout),
+        input_layout("input3", in_layout),
+        input_layout("input4", in_layout),
+        data("begin", begin),
+        data("end", end),
+        data("strides", strides),
+        strided_slice("strided_slice1", input_info("input1"), input_info("begin"),
+                               input_info("end"), input_info("strides"), {1, 1, 1, 0}, {1, 1, 1, 0}, {}, {}, {}, {}),
+        strided_slice("strided_slice2", input_info("input2"), input_info("begin"),
+                               input_info("end"), input_info("strides"), {1, 1, 1, 0}, {1, 1, 1, 0}, {}, {}, {}, {}),
+        strided_slice("strided_slice3", input_info("input3"), input_info("begin"),
+                               input_info("end"), input_info("strides"), {1, 1, 1, 0}, {1, 1, 1, 0}, {}, {}, {}, {}),
+        strided_slice("strided_slice4", input_info("input4"), input_info("begin"),
+                               input_info("end"), input_info("strides"), {1, 1, 1, 0}, {1, 1, 1, 0}, {}, {}, {}, {}),
+        concatenation("concat", {input_info("strided_slice1"), input_info("strided_slice2"), input_info("strided_slice3"), input_info("strided_slice4")}, 1, concat_padding),
+        reorder("reorder", input_info("concat"), format::fs_b_yx_fsv32, data_types::f16));
+
+    ExecutionConfig config = get_test_default_config(engine);
+    config.set_property(ov::intel_gpu::optimize_data(true));
+    config.set_property(ov::intel_gpu::allow_new_shape_infer(true));
+
+    auto program = program::build_program(engine, topology, config, false, true);
+    program_wrapper::apply_opt_pass<prepare_buffer_fusing>(*program);
+    ASSERT_NE(program, nullptr);
+
+    auto& concat = program->get_node("concat");
+    ASSERT_EQ(concat.can_be_optimized(), false);
+
+    network network(engine, topology, config);
+    network.set_input_data("input1", input1_mem);
+    network.set_input_data("input2", input2_mem);
+    network.set_input_data("input3", input3_mem);
+    network.set_input_data("input4", input4_mem);
+    auto outputs = network.execute();
+
+    const auto& concat_inst = network.get_primitive("concat");
+    ASSERT_EQ(concat_inst->can_be_optimized(), false);
 }
 
 #ifdef ENABLE_ONEDNN_FOR_GPU

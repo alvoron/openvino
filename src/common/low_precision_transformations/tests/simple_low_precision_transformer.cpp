@@ -12,17 +12,27 @@
 #include "low_precision/markup_quantization_granularity.hpp"
 #include "low_precision/transformation_context.hpp"
 
+// cleanup transformations
+#include "low_precision/convert.hpp"
+#include "low_precision/eliminate_fake_quantize.hpp"
+#include "low_precision/fold_convert.hpp"
+#include "low_precision/fold_fake_quantize.hpp"
+#include "low_precision/fuse_convert.hpp"
+#include "low_precision/fuse_multiply_to_fake_quantize.hpp"
+#include "low_precision/fuse_subtract_to_fake_quantize.hpp"
+#include "low_precision/multiply_to_group_convolution.hpp"
+
 #include <string>
 
 using namespace testing;
 using namespace ov::pass;
-
-OPENVINO_SUPPRESS_DEPRECATED_START
+using namespace ov::pass::low_precision;
 
 SimpleLowPrecisionTransformer::SimpleLowPrecisionTransformer(
     const std::vector<ov::pass::low_precision::PrecisionsRestriction>& precisionRestrictions,
     const std::vector<ov::pass::low_precision::QuantizationGranularityRestriction>& quantizationRestrictions,
-    const AttributeParameters& params) {
+    const AttributeParameters& params,
+    const bool addCleanup) {
     auto passConfig = get_pass_config();
 
     // TODO: use one pass manager
@@ -39,7 +49,20 @@ SimpleLowPrecisionTransformer::SimpleLowPrecisionTransformer(
 
     common = std::make_shared<ov::pass::Manager>(passConfig);
     commonGraphRewrite = common->register_pass<ov::pass::GraphRewrite>();
+
     cleanup = common->register_pass<ov::pass::GraphRewrite>();
+    if (addCleanup) {
+        ov::pass::low_precision::LayerTransformation::Params params;
+        cleanup->add_matcher<EliminateFakeQuantizeTransformation>(params);
+        cleanup->add_matcher<FoldConvertTransformation>(params);
+        cleanup->add_matcher<FuseConvertTransformation>(params);
+        cleanup->add_matcher<FuseSubtractToFakeQuantizeTransformation>(params);
+        cleanup->add_matcher<FuseMultiplyToFakeQuantizeTransformation>(params);
+
+        cleanup->add_matcher<MultiplyToGroupConvolutionTransformation>(
+            params,
+            PrecisionsRestriction::getPrecisionsByOperationType<opset1::GroupConvolution>(precisionRestrictions));
+    }
 }
 
 void SimpleLowPrecisionTransformer::transform(std::shared_ptr<ov::Model>& model) {

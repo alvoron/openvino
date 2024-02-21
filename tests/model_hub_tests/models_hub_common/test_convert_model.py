@@ -3,6 +3,8 @@
 import gc
 
 import numpy as np
+# noinspection PyUnresolvedReferences
+import openvino_tokenizers  # do not delete, needed for text models
 from models_hub_common.multiprocessing_utils import multiprocessing_run
 from models_hub_common.utils import compare_two_tensors
 from openvino import convert_model
@@ -61,7 +63,7 @@ class TestConvertModel:
 
     def compare_results(self, fw_outputs, ov_outputs):
         assert len(fw_outputs) == len(ov_outputs), \
-            "Different number of outputs between TensorFlow and OpenVINO:" \
+            "Different number of outputs between framework and OpenVINO:" \
             " {} vs. {}".format(len(fw_outputs), len(ov_outputs))
 
         fw_eps = 5e-2
@@ -73,13 +75,13 @@ class TestConvertModel:
                     "OpenVINO outputs does not contain tensor with name {}".format(out_name)
                 cur_ov_res = ov_outputs[out_name]
                 print(f"fw_re: {cur_fw_res};\n ov_res: {cur_ov_res}")
-                is_ok = compare_two_tensors(cur_ov_res, cur_fw_res, fw_eps)
+                is_ok = is_ok and compare_two_tensors(cur_ov_res, cur_fw_res, fw_eps)
         else:
             for i in range(len(ov_outputs)):
                 cur_fw_res = fw_outputs[i]
                 cur_ov_res = ov_outputs[i]
-                print(f"fw_re: {cur_fw_res};\n ov_res: {cur_ov_res}")
-                is_ok = compare_two_tensors(cur_ov_res, cur_fw_res, fw_eps)
+                print(f"fw_res: {cur_fw_res};\n ov_res: {cur_ov_res}")
+                is_ok = is_ok and compare_two_tensors(cur_ov_res, cur_fw_res, fw_eps)
         assert is_ok, "Accuracy validation failed"
 
     def teardown_method(self):
@@ -87,6 +89,7 @@ class TestConvertModel:
         gc.collect()
 
     def _run(self, model_name, model_link, ie_device):
+        self.model_name = model_name
         print("Load the model {} (url: {})".format(model_name, model_link))
         fw_model = self.load_model(model_name, model_link)
         print("Retrieve inputs info")

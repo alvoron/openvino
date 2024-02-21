@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "compilation_context.hpp"
 #include <mutex>
 #include <atomic>
 #include <unordered_set>
 #include <future>
 #include "intel_gpu/runtime/utils.hpp"
+#include "intel_gpu/runtime/compilation_context.hpp"
+
+#include "openvino/runtime/threading/cpu_streams_executor.hpp"
 
 namespace cldnn {
 class CompilationContext : public ICompilationContext {
@@ -26,8 +28,8 @@ public:
         futures.emplace_back(promise->get_future());
 
         if (_task_keys.find(key) == _task_keys.end()) {
-            _task_keys.insert(key);
             if (_task_executor != nullptr) {
+                _task_keys.insert(key);
                 _task_executor->run([task, promise] {
                     task();
                     promise->set_value();
@@ -60,6 +62,14 @@ public:
             return;
 
         _stop_compilation = true;
+
+        // Flush all remaining tasks.
+        for (auto&& future : futures) {
+            if (future.valid()) {
+                future.wait();
+            }
+        }
+
         {
             std::lock_guard<std::mutex> lock(_mutex);
             if (_task_executor != nullptr)
@@ -83,7 +93,7 @@ private:
     std::vector<std::future<void>> futures;
 };
 
-std::unique_ptr<ICompilationContext> ICompilationContext::create(ov::threading::IStreamsExecutor::Config task_executor_config) {
+std::shared_ptr<ICompilationContext> ICompilationContext::create(ov::threading::IStreamsExecutor::Config task_executor_config) {
     return cldnn::make_unique<CompilationContext>(task_executor_config);
 }
 

@@ -40,7 +40,7 @@ def reset_env():
 
 def try_to_import_ie(module="", libs=[], silent=False):
     """
-    Check if Inference Engine Python API modules exists and in case of success
+    Check if OpenVINO Python API modules exists and in case of success
     environment will be set with given values.
     :param module: path to python module
     :param libs: list with paths to libraries
@@ -67,9 +67,9 @@ def try_to_import_ie(module="", libs=[], silent=False):
 
 def find_ie_version(silent=False):
     """
-    Tries to import Inference Engine Python API bindings. In case of successful import
+    Tries to import OpenVINO Python API bindings. In case of successful import
     PATH/LD_LIBRARY_PATH and PYTHONPATH environment variables will be set
-    This variables must be passed to subprocess in order to execute IE python bindings.
+    This variables must be passed to subprocess in order to execute OV python bindings.
     Example:
         if find_ie_version():
             subprocess.run([sys.executable, path_to_script], env=os.environ)
@@ -78,25 +78,21 @@ def find_ie_version(silent=False):
     if try_to_import_ie(silent=silent):
         return True
 
-    python_version = 'python{}.{}'.format(sys.version_info[0], sys.version_info[1])
-
     script_path = os.path.realpath(os.path.dirname(__file__))
 
     # Windows
     bindings_paths_windows = [
         # Local builds
         {
-            "module": os.path.join(script_path, '../../../../../../bin/intel64/Release/python_api/', python_version),
+            "module": os.path.join(script_path, '../../../../../../bin/intel64/Release/python/'),
             "libs": [
-                os.path.join(script_path, '../../../../../../bin/intel64'),
                 os.path.join(script_path, '../../../../../../bin/intel64/Release'),
                 os.path.join(script_path, '../../../../../../temp/tbb/bin'),
             ]
         },
         {
-            "module": os.path.join(script_path, '../../../../../../bin/intel64/Debug/python_api/', python_version),
+            "module": os.path.join(script_path, '../../../../../../bin/intel64/Debug/python/'),
             "libs": [
-                os.path.join(script_path, '../../../../../../bin/intel64'),
                 os.path.join(script_path, '../../../../../../bin/intel64/Debug'),
                 os.path.join(script_path, '../../../../../../temp/tbb/bin'),
             ]
@@ -107,22 +103,21 @@ def find_ie_version(silent=False):
     bindings_paths_linux = [
         # Local builds
         {
-            "module": os.path.join(script_path, '../../../../../../bin/intel64/Release/lib/python_api/', python_version),
+            "module": os.path.join(script_path, '../../../../../../bin/intel64/Release/python/'),
             "libs": [
-                os.path.join(script_path, '../../../../../../bin/intel64/Release/lib'),
-            ]
-        },
-
-        {
-            "module": os.path.join(script_path, '../../../../../../bin/intel64/RelWithDebInfo/lib/python_api/', python_version),
-            "libs": [
-                os.path.join(script_path, '../../../../../../bin/intel64/RelWithDebInfo/lib'),
+                os.path.join(script_path, '../../../../../../bin/intel64/Release'),
             ]
         },
         {
-            "module": os.path.join(script_path, '../../../../../../bin/intel64/Debug/lib/python_api/', python_version),
+            "module": os.path.join(script_path, '../../../../../../bin/intel64/RelWithDebInfo/python'),
             "libs": [
-                os.path.join(script_path, '../../../../../../bin/intel64/Debug/lib'),
+                os.path.join(script_path, '../../../../../../bin/intel64/RelWithDebInfo'),
+            ]
+        },
+        {
+            "module": os.path.join(script_path, '../../../../../../bin/intel64/Debug/python'),
+            "libs": [
+                os.path.join(script_path, '../../../../../../bin/intel64/Debug'),
             ]
         }
     ]

@@ -1,13 +1,13 @@
-// Copyright (C) 2018-2023 Intel Corporation
+// Copyright (C) 2018-2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
-#include "caseless.hpp"
-
-#include <vector>
 #include <string>
+#include <vector>
+
+#include "utils/caseless.hpp"
 
 namespace ov {
 namespace intel_cpu {
@@ -17,7 +17,6 @@ using VectorDims = std::vector<Dim>;
 
 enum class Type {
     Unknown,
-    Generic,
     If,
     Reorder,
     Input,
@@ -100,18 +99,23 @@ enum class Type {
     ExperimentalDetectronROIFeatureExtractor,
     ExperimentalDetectronPriorGridGenerator,
     ExperimentalDetectronGenerateProposalsSingleImage,
-    GenerateProposals,
     ExtractImagePatches,
+    GenerateProposals,
+    Inverse,
     NonMaxSuppression,
     MatrixNms,
     MulticlassNms,
+    Multinomial,
     Subgraph,
     PriorBox,
     PriorBoxClustered,
     Interaction,
     MHA,
+    RandomUniform,
     Unique,
-    Ngram
+    Ngram,
+    ScaledDotProductAttention,
+    RoPE,
 };
 
 enum class Algorithm {
@@ -181,6 +185,10 @@ enum class Algorithm {
     EltwiseErf,
     EltwiseSoftSign,
     EltwiseLog,
+    EltwiseBitwiseAnd,
+    EltwiseBitwiseNot,
+    EltwiseBitwiseOr,
+    EltwiseBitwiseXor,
 
     // FakeQuantize algorithms
     FQCommon,
@@ -247,7 +255,7 @@ enum class Algorithm {
     ColorConvertI420toBGR,
 };
 
-extern const InferenceEngine::details::caseless_unordered_map<std::string, Type> type_to_name_tbl;
+extern const ov::intel_cpu::caseless_unordered_map<std::string, Type> type_to_name_tbl;
 
 Type TypeFromName(const std::string& type);
 
@@ -255,5 +263,5 @@ std::string NameFromType(const Type type);
 
 std::string algToString(const Algorithm alg);
 
-}   // namespace intel_cpu
-}   // namespace ov
+}  // namespace intel_cpu
+}  // namespace ov

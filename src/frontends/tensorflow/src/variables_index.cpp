@@ -11,8 +11,8 @@
 #include "graph_iterator_saved_model.hpp"
 #include "openvino/core/type/element_type.hpp"
 #include "openvino/util/mmap_object.hpp"
-#include "tensor_bundle.pb.h"
-#include "trackable_object_graph.pb.h"
+#include "ov_tensorflow/tensor_bundle.pb.h"
+#include "ov_tensorflow/trackable_object_graph.pb.h"
 
 #ifdef ENABLE_SNAPPY_COMPRESSION
 #    include "snappy.h"
@@ -228,11 +228,11 @@ bool VariablesIndex::read_variables(std::ifstream& vi_stream, const std::wstring
         }
         if (m_mmap_enabled) {
             m_data_files[shard].mmap = load_mmap_object(fullPath);
-            FRONT_END_GENERAL_CHECK(m_data_files[shard].mmap->data(), L"Variable index data cannot be mapped");
+            FRONT_END_GENERAL_CHECK(m_data_files[shard].mmap->data(), "Variable index data cannot be mapped");
         } else {
             m_data_files[shard].stream = std::shared_ptr<std::ifstream>(
                 new std::ifstream(fullPath.c_str(), std::ifstream::in | std::ifstream::binary));
-            FRONT_END_GENERAL_CHECK(m_data_files[shard].stream->is_open(), L"Variable index data file does not exist");
+            FRONT_END_GENERAL_CHECK(m_data_files[shard].stream->is_open(), "Variable index data file does not exist");
         }
     }
 

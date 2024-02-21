@@ -9,7 +9,6 @@
 #include "common_test_utils/file_utils.hpp"
 #include "openvino/util/file_util.hpp"
 
-OPENVINO_SUPPRESS_DEPRECATED_START
 namespace {
 template <typename T>
 typename std::enable_if<std::is_floating_point<T>::value, testing::AssertionResult>::type
@@ -192,7 +191,7 @@ TestCase::TestCase(const std::shared_ptr<ov::Model>& function, const std::string
         // Register template plugin
         m_core.register_plugin(
             ov::util::make_plugin_library_name(ov::test::utils::getExecutableDirectory(),
-                                               std::string("openvino_template_plugin") + IE_BUILD_POSTFIX),
+                                               std::string("openvino_template_plugin") + OV_BUILD_POSTFIX),
             "TEMPLATE");
     } catch (...) {
     }

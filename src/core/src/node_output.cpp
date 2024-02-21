@@ -4,6 +4,7 @@
 
 #include "openvino/core/node_output.hpp"
 
+#include "openvino/core/descriptor_tensor.hpp"
 #include "openvino/core/node.hpp"
 #include "openvino/core/rt_info.hpp"
 #include "openvino/op/parameter.hpp"
@@ -137,10 +138,12 @@ bool Output<Node>::operator!=(const Output& other) const {
     return !(*this == other);
 }
 bool Output<Node>::operator<(const Output& other) const {
-    return m_node < other.m_node || (m_node == other.m_node && m_index < other.m_index);
+    return m_node->get_instance_id() < other.m_node->get_instance_id() ||
+           (m_node == other.m_node && m_index < other.m_index);
 }
 bool Output<Node>::operator>(const Output& other) const {
-    return m_node > other.m_node || (m_node == other.m_node && m_index > other.m_index);
+    return m_node->get_instance_id() > other.m_node->get_instance_id() ||
+           (m_node == other.m_node && m_index > other.m_index);
 }
 bool Output<Node>::operator<=(const Output& other) const {
     return !(*this > other);
@@ -211,10 +214,12 @@ bool Output<const Node>::operator!=(const Output& other) const {
     return !(*this == other);
 }
 bool Output<const Node>::operator<(const Output& other) const {
-    return m_node < other.m_node || (m_node == other.m_node && m_index < other.m_index);
+    return m_node->get_instance_id() < other.m_node->get_instance_id() ||
+           (m_node == other.m_node && m_index < other.m_index);
 }
 bool Output<const Node>::operator>(const Output& other) const {
-    return m_node > other.m_node || (m_node == other.m_node && m_index > other.m_index);
+    return m_node->get_instance_id() > other.m_node->get_instance_id() ||
+           (m_node == other.m_node && m_index > other.m_index);
 }
 bool Output<const Node>::operator<=(const Output& other) const {
     return !(*this > other);

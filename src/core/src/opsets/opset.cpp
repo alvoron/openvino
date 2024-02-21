@@ -2,25 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "ngraph/opsets/opset.hpp"
+#include "openvino/opsets/opset.hpp"
 
 #include "itt.hpp"
-#include "ngraph/deprecated.hpp"
-#include "ngraph/log.hpp"
 #include "openvino/op/ops.hpp"
-#include "openvino/opsets/opset.hpp"
 #include "openvino/util/log.hpp"
-
-OPENVINO_SUPPRESS_DEPRECATED_START
-ngraph::OpSet::OpSet(const ov::OpSet& opset) : ov::OpSet(opset) {}
-
-ngraph::OpSet::OpSet(const ngraph::OpSet& opset) : ov::OpSet(opset) {}
 
 ov::OpSet::OpSet(const std::string& name) : m_name(name) {}
 
 ov::OpSet::OpSet(const ov::OpSet& opset) {
     *this = opset;
 }
+
+ov::OpSet::~OpSet() = default;
 
 ov::OpSet& ov::OpSet::operator=(const ov::OpSet& opset) {
     m_factory_registry = opset.m_factory_registry;
@@ -31,6 +25,15 @@ ov::OpSet& ov::OpSet::operator=(const ov::OpSet& opset) {
     return *this;
 }
 
+size_t ov::OpSet::size() const {
+    std::lock_guard<std::mutex> guard(opset_mutex);
+    return m_op_types.size();
+}
+
+const std::set<ov::NodeTypeInfo>& ov::OpSet::get_types_info() const {
+    return m_op_types;
+}
+
 ov::Node* ov::OpSet::create(const std::string& name) const {
     auto type_info_it = m_name_type_info_map.find(name);
     if (type_info_it == m_name_type_info_map.end()) {
@@ -38,7 +41,7 @@ ov::Node* ov::OpSet::create(const std::string& name) const {
         return nullptr;
     }
     REGISTER_OP(m_name, name);
-    return m_factory_registry.create(type_info_it->second);
+    return m_factory_registry.find(type_info_it->second)->second();
 }
 
 ov::Node* ov::OpSet::create_insensitive(const std::string& name) const {
@@ -48,25 +51,47 @@ ov::Node* ov::OpSet::create_insensitive(const std::string& name) const {
         return nullptr;
     }
     REGISTER_OP(m_name, name);
-    return m_factory_registry.create(type_info_it->second);
+    return m_factory_registry.find(type_info_it->second)->second();
 }
 
-const std::map<std::string, std::function<const ngraph::OpSet&()>>& ngraph::get_available_opsets() {
-#define _NGRAPH_REG_OPSET(OPSET) \
-    { #OPSET, ngraph::get_##OPSET }
-    const static std::map<std::string, std::function<const ngraph::OpSet&()>> opset_map = {_NGRAPH_REG_OPSET(opset1),
-                                                                                           _NGRAPH_REG_OPSET(opset2),
-                                                                                           _NGRAPH_REG_OPSET(opset3),
-                                                                                           _NGRAPH_REG_OPSET(opset4),
-                                                                                           _NGRAPH_REG_OPSET(opset5),
-                                                                                           _NGRAPH_REG_OPSET(opset6),
-                                                                                           _NGRAPH_REG_OPSET(opset7),
-                                                                                           _NGRAPH_REG_OPSET(opset8),
-                                                                                           _NGRAPH_REG_OPSET(opset9),
-                                                                                           _NGRAPH_REG_OPSET(opset10),
-                                                                                           _NGRAPH_REG_OPSET(opset11)};
-#undef _NGRAPH_REG_OPSET
-    return opset_map;
+bool ov::OpSet::contains_type(const ov::NodeTypeInfo& type_info) const {
+    std::lock_guard<std::mutex> guard(opset_mutex);
+    return m_op_types.find(type_info) != m_op_types.end();
+}
+
+bool ov::OpSet::contains_type(const std::string& name) const {
+    std::lock_guard<std::mutex> guard(opset_mutex);
+    return m_name_type_info_map.find(name) != m_name_type_info_map.end();
+}
+
+bool ov::OpSet::contains_type_insensitive(const std::string& name) const {
+    std::lock_guard<std::mutex> guard(opset_mutex);
+    return m_case_insensitive_type_info_map.find(to_upper_name(name)) != m_case_insensitive_type_info_map.end();
+}
+
+bool ov::OpSet::contains_op_type(const ov::Node* node) const {
+    std::lock_guard<std::mutex> guard(opset_mutex);
+    return m_op_types.find(node->get_type_info()) != m_op_types.end();
+}
+
+const std::set<ov::NodeTypeInfo>& ov::OpSet::get_type_info_set() const {
+    return m_op_types;
+}
+
+void ov::OpSet::insert(const std::string& name, const NodeTypeInfo& type_info, DefaultOp func) {
+    m_op_types.insert(type_info);
+    m_name_type_info_map[name] = type_info;
+    m_case_insensitive_type_info_map[to_upper_name(name)] = type_info;
+    m_factory_registry[type_info] = func;
+}
+
+std::string ov::OpSet::to_upper_name(const std::string& name) {
+    std::string upper_name = name;
+    std::locale loc;
+    std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), [&loc](char c) {
+        return std::toupper(c, loc);
+    });
+    return upper_name;
 }
 
 const std::map<std::string, std::function<const ov::OpSet&()>>& ov::get_available_opsets() {
@@ -83,7 +108,9 @@ const std::map<std::string, std::function<const ov::OpSet&()>>& ov::get_availabl
                                                                                        _OPENVINO_REG_OPSET(opset9),
                                                                                        _OPENVINO_REG_OPSET(opset10),
                                                                                        _OPENVINO_REG_OPSET(opset11),
-                                                                                       _OPENVINO_REG_OPSET(opset12)};
+                                                                                       _OPENVINO_REG_OPSET(opset12),
+                                                                                       _OPENVINO_REG_OPSET(opset13),
+                                                                                       _OPENVINO_REG_OPSET(opset14)};
 #undef _OPENVINO_REG_OPSET
     return opset_map;
 }
@@ -220,57 +247,24 @@ const ov::OpSet& ov::get_opset12() {
     return opset;
 }
 
-const ngraph::OpSet& ngraph::get_opset1() {
-    static OpSet opset(ov::get_opset1());
+const ov::OpSet& ov::get_opset13() {
+    static OpSet opset;
+    static std::once_flag flag;
+    std::call_once(flag, [&]() {
+#define _OPENVINO_OP_REG(NAME, NAMESPACE) opset.insert<NAMESPACE::NAME>();
+#include "openvino/opsets/opset13_tbl.hpp"
+#undef _OPENVINO_OP_REG
+    });
     return opset;
 }
 
-const ngraph::OpSet& ngraph::get_opset2() {
-    static OpSet opset(ov::get_opset2());
-    return opset;
-}
-
-const ngraph::OpSet& ngraph::get_opset3() {
-    static OpSet opset(ov::get_opset3());
-    return opset;
-}
-
-const ngraph::OpSet& ngraph::get_opset4() {
-    static OpSet opset(ov::get_opset4());
-    return opset;
-}
-
-const ngraph::OpSet& ngraph::get_opset5() {
-    static OpSet opset(ov::get_opset5());
-    return opset;
-}
-
-const ngraph::OpSet& ngraph::get_opset6() {
-    static OpSet opset(ov::get_opset6());
-    return opset;
-}
-
-const ngraph::OpSet& ngraph::get_opset7() {
-    static OpSet opset(ov::get_opset7());
-    return opset;
-}
-
-const ngraph::OpSet& ngraph::get_opset8() {
-    static OpSet opset(ov::get_opset8());
-    return opset;
-}
-
-const ngraph::OpSet& ngraph::get_opset9() {
-    static OpSet opset(ov::get_opset9());
-    return opset;
-}
-
-const ngraph::OpSet& ngraph::get_opset10() {
-    static OpSet opset(ov::get_opset10());
-    return opset;
-}
-
-const ngraph::OpSet& ngraph::get_opset11() {
-    static OpSet opset(ov::get_opset11());
+const ov::OpSet& ov::get_opset14() {
+    static OpSet opset;
+    static std::once_flag flag;
+    std::call_once(flag, [&]() {
+#define _OPENVINO_OP_REG(NAME, NAMESPACE) opset.insert<NAMESPACE::NAME>();
+#include "openvino/opsets/opset14_tbl.hpp"
+#undef _OPENVINO_OP_REG
+    });
     return opset;
 }

@@ -5,7 +5,6 @@
 #include "openvino/reference/roi_align.hpp"
 
 #include "itt.hpp"
-#include "openvino/core/validation_util.hpp"
 #include "openvino/op/roi_align.hpp"
 #include "roi_align_shape_inference.hpp"
 
@@ -52,9 +51,7 @@ void op::v3::ROIAlign::validate_and_infer_types() {
     const auto out_et = roi_align::validate::data_and_roi_et(this);
     roi_align::validate::batch_indicies_et(this);
 
-    OPENVINO_SUPPRESS_DEPRECATED_START
-    const auto input_shapes = get_node_input_partial_shapes(*this);
-    OPENVINO_SUPPRESS_DEPRECATED_END
+    const auto input_shapes = ov::util::get_node_input_partial_shapes(*this);
 
     auto output_shape = shape_infer(this, input_shapes).front();
     set_output_type(0, out_et, output_shape);
@@ -125,9 +122,7 @@ void op::v9::ROIAlign::validate_and_infer_types() {
     const auto out_et = roi_align::validate::data_and_roi_et(this);
     roi_align::validate::batch_indicies_et(this);
 
-    OPENVINO_SUPPRESS_DEPRECATED_START
-    const auto input_shapes = get_node_input_partial_shapes(*this);
-    OPENVINO_SUPPRESS_DEPRECATED_END
+    const auto input_shapes = ov::util::get_node_input_partial_shapes(*this);
 
     auto output_shape = shape_infer(this, input_shapes).front();
     set_output_type(0, out_et, output_shape);
@@ -260,45 +255,45 @@ bool evaluate(const TensorVector& args,
 
     bool rc;
     switch (feature_maps.get_element_type()) {
-        NGRAPH_TYPE_CASE(evaluate_roi_align,
-                         bf16,
-                         feature_maps,
-                         rois,
-                         batch_indices_vec_scaled_up,
-                         out,
-                         pooled_height,
-                         pooled_width,
-                         sampling_ratio,
-                         spatial_scale,
-                         pooling_mode,
-                         batch_indices.get_shape(),
-                         aligned_mode);
-        NGRAPH_TYPE_CASE(evaluate_roi_align,
-                         f16,
-                         feature_maps,
-                         rois,
-                         batch_indices_vec_scaled_up,
-                         out,
-                         pooled_height,
-                         pooled_width,
-                         sampling_ratio,
-                         spatial_scale,
-                         pooling_mode,
-                         batch_indices.get_shape(),
-                         aligned_mode);
-        NGRAPH_TYPE_CASE(evaluate_roi_align,
-                         f32,
-                         feature_maps,
-                         rois,
-                         batch_indices_vec_scaled_up,
-                         out,
-                         pooled_height,
-                         pooled_width,
-                         sampling_ratio,
-                         spatial_scale,
-                         pooling_mode,
-                         batch_indices.get_shape(),
-                         aligned_mode);
+        OPENVINO_TYPE_CASE(evaluate_roi_align,
+                           bf16,
+                           feature_maps,
+                           rois,
+                           batch_indices_vec_scaled_up,
+                           out,
+                           pooled_height,
+                           pooled_width,
+                           sampling_ratio,
+                           spatial_scale,
+                           pooling_mode,
+                           batch_indices.get_shape(),
+                           aligned_mode);
+        OPENVINO_TYPE_CASE(evaluate_roi_align,
+                           f16,
+                           feature_maps,
+                           rois,
+                           batch_indices_vec_scaled_up,
+                           out,
+                           pooled_height,
+                           pooled_width,
+                           sampling_ratio,
+                           spatial_scale,
+                           pooling_mode,
+                           batch_indices.get_shape(),
+                           aligned_mode);
+        OPENVINO_TYPE_CASE(evaluate_roi_align,
+                           f32,
+                           feature_maps,
+                           rois,
+                           batch_indices_vec_scaled_up,
+                           out,
+                           pooled_height,
+                           pooled_width,
+                           sampling_ratio,
+                           spatial_scale,
+                           pooling_mode,
+                           batch_indices.get_shape(),
+                           aligned_mode);
     default:
         rc = false;
         break;

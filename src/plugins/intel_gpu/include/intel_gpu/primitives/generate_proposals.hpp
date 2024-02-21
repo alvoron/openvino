@@ -59,7 +59,7 @@ struct generate_proposals
     int64_t post_nms_count = 0;
     bool normalized = false;
     float nms_eta = 0.0f;
-    data_types roi_num_type = data_types::bin;
+    data_types roi_num_type = data_types::undefined;
 
     size_t hash() const override {
         size_t seed = primitive::hash();
@@ -121,8 +121,8 @@ struct generate_proposals
     }
 
 protected:
-    std::vector<std::reference_wrapper<const primitive_id>> get_dependencies() const override {
-        std::vector<std::reference_wrapper<const primitive_id>> ret;
+    std::vector<input_info> get_dependencies() const override {
+        std::vector<input_info> ret;
         if (!output_rois_scores.empty())
             ret.push_back(output_rois_scores);
         if (!output_rois_num.empty())

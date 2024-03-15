@@ -76,6 +76,13 @@ inline int parallel_get_env_threads() {
 
 #    else
 #        define PARTITIONING
+// The TBB version less than 2018u1 has no static_partitioner argument for
+// tbb::parallel_deterministic_reduce. So will fallback to non deterministic version.
+#        if (TBB_INTERFACE_VERSION >= 10001)
+#            define _TBB_REDUCE_FUNC tbb::parallel_deterministic_reduce
+#        else
+#            define _TBB_REDUCE_FUNC tbb::parallel_reduce
+#        endif
 #    endif
 #elif OV_THREAD == OV_THREAD_OMP
 #    include <omp.h>
@@ -408,8 +415,8 @@ void for_1d(const int& ithr, const int& nthr, const T0& D0, const F& func) {
 
 template <typename T0, typename F>
 void parallel_for(const T0& D0, const F& func) {
-#if OV_THREAD == OV_THREAD_TBB
     auto work_amount = static_cast<size_t>(D0);
+#if OV_THREAD == OV_THREAD_TBB
     int nthr = parallel_get_max_threads();
     if (static_cast<size_t>(nthr) > work_amount)
         nthr = static_cast<int>(work_amount);
@@ -425,7 +432,7 @@ void parallel_for(const T0& D0, const F& func) {
             tbb::static_partitioner());
     }
 #elif OV_THREAD == OV_THREAD_TBB_AUTO
-    const int nthr = parallel_get_max_threads();
+    const int nthr = static_cast<int>(work_amount);//parallel_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_1d(ithr, nthr, D0, func);
     });
@@ -456,8 +463,8 @@ void for_2d(const int& ithr, const int& nthr, const T0& D0, const T1& D1, const 
 
 template <typename T0, typename T1, typename F>
 void parallel_for2d(const T0& D0, const T1& D1, const F& func) {
-#if OV_THREAD == OV_THREAD_TBB
     auto work_amount = static_cast<size_t>(D0 * D1);
+#if OV_THREAD == OV_THREAD_TBB
     int nthr = parallel_get_max_threads();
     if (static_cast<size_t>(nthr) > work_amount)
         nthr = static_cast<int>(work_amount);
@@ -473,7 +480,7 @@ void parallel_for2d(const T0& D0, const T1& D1, const F& func) {
             tbb::static_partitioner());
     }
 #elif OV_THREAD == OV_THREAD_TBB_AUTO
-    const int nthr = parallel_get_max_threads();
+    const int nthr = static_cast<int>(work_amount);//parallel_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_2d(ithr, nthr, D0, D1, func);
     });
@@ -505,8 +512,8 @@ void for_3d(const int& ithr, const int& nthr, const T0& D0, const T1& D1, const 
 
 template <typename T0, typename T1, typename T2, typename F>
 void parallel_for3d(const T0& D0, const T1& D1, const T2& D2, const F& func) {
-#if OV_THREAD == OV_THREAD_TBB
     auto work_amount = static_cast<size_t>(D0 * D1 * D2);
+#if OV_THREAD == OV_THREAD_TBB
     int nthr = parallel_get_max_threads();
     if (static_cast<size_t>(nthr) > work_amount)
         nthr = static_cast<int>(work_amount);
@@ -522,7 +529,7 @@ void parallel_for3d(const T0& D0, const T1& D1, const T2& D2, const F& func) {
             tbb::static_partitioner());
     }
 #elif OV_THREAD == OV_THREAD_TBB_AUTO
-    const int nthr = parallel_get_max_threads();
+    const int nthr = static_cast<int>(work_amount);//parallel_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_3d(ithr, nthr, D0, D1, D2, func);
     });
@@ -555,8 +562,8 @@ void for_4d(const int& ithr, const int& nthr, const T0& D0, const T1& D1, const 
 
 template <typename T0, typename T1, typename T2, typename T3, typename F>
 void parallel_for4d(const T0& D0, const T1& D1, const T2& D2, const T3& D3, const F& func) {
+auto work_amount = static_cast<size_t>(D0 * D1 * D2 * D3);
 #if OV_THREAD == OV_THREAD_TBB
-    auto work_amount = static_cast<size_t>(D0 * D1 * D2 * D3);
     int nthr = parallel_get_max_threads();
     if (static_cast<size_t>(nthr) > work_amount)
         nthr = static_cast<int>(work_amount);
@@ -572,7 +579,7 @@ void parallel_for4d(const T0& D0, const T1& D1, const T2& D2, const T3& D3, cons
             tbb::static_partitioner());
     }
 #elif OV_THREAD == OV_THREAD_TBB_AUTO
-    const int nthr = parallel_get_max_threads();
+    const int nthr = static_cast<int>(work_amount);//parallel_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_4d(ithr, nthr, D0, D1, D2, D3, func);
     });
@@ -613,8 +620,8 @@ void for_5d(const int& ithr,
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4, typename F>
 void parallel_for5d(const T0& D0, const T1& D1, const T2& D2, const T3& D3, const T4& D4, const F& func) {
+auto work_amount = static_cast<size_t>(D0 * D1 * D2 * D3 * D4);
 #if OV_THREAD == OV_THREAD_TBB
-    auto work_amount = static_cast<size_t>(D0 * D1 * D2 * D3 * D4);
     int nthr = parallel_get_max_threads();
     if (static_cast<size_t>(nthr) > work_amount)
         nthr = static_cast<int>(work_amount);
@@ -630,7 +637,7 @@ void parallel_for5d(const T0& D0, const T1& D1, const T2& D2, const T3& D3, cons
             tbb::static_partitioner());
     }
 #elif OV_THREAD == OV_THREAD_TBB_AUTO
-    const int nthr = parallel_get_max_threads();
+    const int nthr = static_cast<int>(work_amount);//parallel_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_5d(ithr, nthr, D0, D1, D2, D3, D4, func);
     });
@@ -673,8 +680,8 @@ void for_6d(const int& ithr,
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename F>
 void parallel_for6d(const T0& D0, const T1& D1, const T2& D2, const T3& D3, const T4& D4, const T5& D5, const F& func) {
+auto work_amount = static_cast<size_t>(D0 * D1 * D2 * D3 * D4 * D5);
 #if OV_THREAD == OV_THREAD_TBB
-    auto work_amount = static_cast<size_t>(D0 * D1 * D2 * D3 * D4 * D5);
     int nthr = parallel_get_max_threads();
     if (static_cast<size_t>(nthr) > work_amount)
         nthr = static_cast<int>(work_amount);
@@ -690,7 +697,7 @@ void parallel_for6d(const T0& D0, const T1& D1, const T2& D2, const T3& D3, cons
             tbb::static_partitioner());
     }
 #elif OV_THREAD == OV_THREAD_TBB_AUTO
-    const int nthr = parallel_get_max_threads();
+    const int nthr = static_cast<int>(work_amount);//parallel_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_6d(ithr, nthr, D0, D1, D2, D3, D4, D5, func);
     });

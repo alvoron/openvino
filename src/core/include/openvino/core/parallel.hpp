@@ -76,6 +76,13 @@ inline int parallel_get_env_threads() {
 
 #    else
 #        define PARTITIONING
+// The TBB version less than 2018u1 has no static_partitioner argument for
+// tbb::parallel_deterministic_reduce. So will fallback to non deterministic version.
+#        if (TBB_INTERFACE_VERSION >= 10001)
+#            define _TBB_REDUCE_FUNC tbb::parallel_deterministic_reduce
+#        else
+#            define _TBB_REDUCE_FUNC tbb::parallel_reduce
+#        endif
 #    endif
 #elif OV_THREAD == OV_THREAD_OMP
 #    include <omp.h>

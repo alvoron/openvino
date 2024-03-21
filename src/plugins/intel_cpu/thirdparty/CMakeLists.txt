@@ -29,7 +29,7 @@ function(ov_add_onednn)
     set(DNNL_LIBRARY_TYPE "STATIC" CACHE STRING "" FORCE)
     set(DNNL_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(DNNL_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(DNNL_CPU_RUNTIME "${THREADING}" CACHE STRING "" FORCE)
+    set(DNNL_CPU_RUNTIME "TBB" CACHE STRING "" FORCE)
     set(DNNL_GPU_RUNTIME "NONE" CACHE STRING "" FORCE)
     set(DNNL_BLAS_VENDOR "NONE" CACHE STRING "" FORCE)
     # plugin does not use onednn graph
@@ -71,7 +71,7 @@ function(ov_add_onednn)
     # they don't check that imported target is already created
     if(TBB_FOUND)
         set(TBB_cmake_included ON)
-        set(DNNL_CPU_THREADING_RUNTIME "${THREADING}")
+        set(DNNL_CPU_THREADING_RUNTIME "TBB")
         function(find_package_tbb)
             # dummy
         endfunction()

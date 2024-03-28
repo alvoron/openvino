@@ -433,8 +433,10 @@ void parallel_for(const T0& D0, const F& func) {
     }
 #elif OV_THREAD == OV_THREAD_TBB_AUTO
     const int nthr = static_cast<int>(work_amount);//parallel_get_max_threads();
-    tbb::parallel_for(0, nthr, [&](int ithr) {
-        for_1d(ithr, nthr, D0, func);
+    tbb::parallel_for(tbb::blocked_range<int>(0,D0), [&](tbb::blocked_range<int> ithr) {
+        for (int i=ithr.begin(); i<ithr.end(); ++i) {
+            func(i);
+        }
     });
 #elif OV_THREAD == OV_THREAD_OMP
 #    pragma omp parallel

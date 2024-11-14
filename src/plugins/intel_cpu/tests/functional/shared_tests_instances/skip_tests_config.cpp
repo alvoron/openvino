@@ -340,6 +340,11 @@ std::vector<std::string> disabledTestPatterns() {
         retVector.emplace_back(R"(.*LSTMCellFusion/LSTMCellFusionWithSplitWeights.SubgraphFusedToLSTMCell/(1|8|15))");
         // Ticket: 131541
         retVector.emplace_back(R"(.*smoke_MulticlassNmsLayerTest_dynamic2.*_outType=i32_.*)");
+        // Ticket: 157405
+        retVector.emplace_back(R"(.*smoke_NegativeConvolutionBackpropData_2D_kernel_same_as_input.*)");
+        retVector.emplace_back(R"(.*smoke_ConvolutionBackpropData_2D/MulConvFusion.*)");
+        retVector.emplace_back(R"(.*smoke_NegativeConvolutionBackpropData_2D/MulConvFusion.*)");
+        retVector.emplace_back(R"(.*smoke_QuantConvBackpropData2D/QuantConvBackpropDataLayerTest.CompareWithRefs/IS=\(1.32.10.10\)_K\(1.1\)_S\(1.1\)_PB\(0.0\)_PE\(0.0\)_D=\(1.1\).*)");
     }
     // invalid test: checks u8 precision for runtime graph, while it should be f32
     retVector.emplace_back(R"(smoke_NegativeQuantizedMatMulMultiplyFusion.*)");

@@ -16,7 +16,9 @@ template<typename Attrs> struct Config;
 }
 
 struct FCAttrs;
+struct MatMulAttrs;
 
+std::ostream & operator<<(std::ostream & os, const MatMulAttrs& attrs);
 std::ostream & operator<<(std::ostream & os, const FCAttrs& attrs);
 std::ostream & operator<<(std::ostream & os, const PostOps& postOps);
 

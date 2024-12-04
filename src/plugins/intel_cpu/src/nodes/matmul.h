@@ -7,6 +7,8 @@
 #include "common/dnnl_executor.h"
 #include "memory_desc/dnnl_blocked_memory_desc.h"
 #include "node.h"
+#include "nodes/executors/executor_factory.hpp"
+#include "nodes/executors/matmul_config.hpp"
 
 #include <array>
 
@@ -18,10 +20,12 @@ class MatMul : public Node {
 public:
     MatMul(const std::shared_ptr<ov::Node>& op, const GraphContext::CPtr context);
 
-    void getSupportedDescriptors() override;
-    void createDescriptor(const std::vector<MemoryDescPtr>& inputDesc,
-                          const std::vector<MemoryDescPtr>& outputDesc) override;
+    //void getSupportedDescriptors() override;
+    //void createDescriptor(const std::vector<MemoryDescPtr>& inputDesc,
+    //                      const std::vector<MemoryDescPtr>& outputDesc) override;
     void initSupportedPrimitiveDescriptors() override;
+    void createPrimitive() override;
+    void getSupportedDescriptors() override;
     MemoryDescPtr getSrcMemDesc(const dnnl::primitive_desc &prim_desc, size_t idx) const override;
     bool canFuse(const NodePtr& node) const override;
     bool created() const override;
@@ -45,20 +49,25 @@ public:
 
     bool isExecutable() const override;
 
-protected:
-    AttrPtr initPrimitiveAttr() override;
-    AttrPtr initPrimitiveAttr(const VectorDims& dims);
+//protected:
+//    AttrPtr initPrimitiveAttr() override;
+//    AttrPtr initPrimitiveAttr(const VectorDims& dims);
 
 private:
-    using executorPtr = std::shared_ptr<DnnlExecutor>;
-    executorPtr execPtr = nullptr;
-    dnnl::memory::desc getBiasDescFrom(const DnnlMemoryDescCPtr outMemDesc);
-    std::pair<Shape, Shape>
-    makeDummyInputShapes(const Shape& in0, const Shape& in1, const Shape& out) const;
+    //using executorPtr = std::shared_ptr<DnnlExecutor>;
+    //executorPtr execPtr = nullptr;
+    ExecutorPtr createExecutor();
+
+    ExecutorFactoryPtr<MatMulAttrs, node::MatMul> factory;
+    ExecutorPtr executor = nullptr;
+    MemoryArgs memory;
+    //dnnl::memory::desc getBiasDescFrom(const DnnlMemoryDescCPtr outMemDesc);
+    //std::pair<Shape, Shape>
+    //makeDummyInputShapes(const Shape& in0, const Shape& in1, const Shape& out) const;
 
     bool withBiases;
 
-    void setPostOps(dnnl::primitive_attr &attr, const VectorDims& dims, bool initWeights);
+    //void setPostOps(dnnl::primitive_attr &attr, const VectorDims& dims, bool initWeights);
 
     std::string errorPrefix;
 

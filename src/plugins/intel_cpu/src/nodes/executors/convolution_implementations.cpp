@@ -68,7 +68,7 @@ static const TypeMapping dnnlConvTypeMapping {
     {{_u8 | _i8, _i8, _any, _any}, {bypass(), bypass(), just<f32>(), just<f32>()}},
 #else
     // special fallback for ARM to avoid fp32 convolutions if int8 convolution is not applicable
-    {{_u8 | _i8, _i8, _f32, _f32},                            {just<f16>(), just<f16>(), just<f16>(), just<f16>()}},
+    {{_u8 | _i8, _i8, _any, _f32},                            {just<f16>(), just<f16>(), just<f16>(), just<f16>()}},
 #endif
     // @todo should we fallback to FPXX instead of _f32?
     {{_any, _any, _any, _any},                                {just<f32>(), just<f32>(), just<f32>(), just<f32>()}},

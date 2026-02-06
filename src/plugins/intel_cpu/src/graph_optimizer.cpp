@@ -334,6 +334,24 @@ void GraphOptimizer::FuseConvMatmulFCDeconvAndDQScales(Graph& graph) {
         return true;
     };
 
+#if defined(OPENVINO_ARCH_ARM) || defined(OPENVINO_ARCH_ARM64)
+    auto hasSplitBiasAddChild = [](const NodePtr& mulNode) {
+        if (mulNode->getChildEdges().size() != 1) {
+            return false;
+        }
+
+        const auto addNode = mulNode->getChildEdgeAt(0)->getChild();
+        if (addNode->getType() != Type::Eltwise || addNode->getAlgorithm() != Algorithm::EltwiseAdd ||
+            addNode->getParentEdges().size() != 2) {
+            return false;
+        }
+
+        const auto biasPort = addNode->getParentEdgeAt(0)->getParent() == mulNode ? 1 : 0;
+        const auto biasNode = addNode->getParentEdgeAt(biasPort)->getParent();
+        return biasNode->getType() == Type::Input && biasNode->isConstant() && biasNode->getChildEdges().size() == 1;
+    };
+#endif
+
     for (const auto& mul : graphNodes) {
         if (!isDQScaleGraphPattern(mul)) {
             continue;
@@ -346,6 +364,15 @@ void GraphOptimizer::FuseConvMatmulFCDeconvAndDQScales(Graph& graph) {
         if (!scaleDimsCheck(node, scales)) {
             continue;
         }
+
+#if defined(OPENVINO_ARCH_ARM) || defined(OPENVINO_ARCH_ARM64)
+        if (node->getType() == Type::Convolution && hasSplitBiasAddChild(mul)) {
+            DEBUG_LOG("GraphOptimizer##FusingDQ: Skip DQ scales fusion for node ##",
+                      node->getName(),
+                      " to keep split-bias pattern explicit");
+            continue;
+        }
+#endif
 
         if (initializeDeQuantizedScales(node, scales)) {
             DEBUG_LOG("GraphOptimizer##FusingDQ: Node ##",
@@ -1442,6 +1469,35 @@ void GraphOptimizer::FuseConvolutionAndSimpleOperation(Graph& graph) {
                node->getChildEdges().size() == 1;
     };
 
+#if defined(OPENVINO_ARCH_ARM) || defined(OPENVINO_ARCH_ARM64)
+    auto shouldKeepSplitBiasPattern = [](const NodePtr& parentNode, const NodePtr& childNode) {
+        if (parentNode->getType() != Type::Convolution) {
+            return false;
+        }
+
+        if (childNode->getType() != Type::Eltwise || childNode->getAlgorithm() != Algorithm::EltwiseMultiply ||
+            childNode->getParentEdges().size() != 2 || childNode->getChildEdges().size() != 1) {
+            return false;
+        }
+
+        const auto constPort = childNode->getParentEdgeAt(0)->getParent() == parentNode ? 1 : 0;
+        const auto scalesNode = childNode->getParentEdgeAt(constPort)->getParent();
+        if (scalesNode->getType() != Type::Input || !scalesNode->isConstant()) {
+            return false;
+        }
+
+        const auto addNode = childNode->getChildEdgeAt(0)->getChild();
+        if (addNode->getType() != Type::Eltwise || addNode->getAlgorithm() != Algorithm::EltwiseAdd ||
+            addNode->getParentEdges().size() != 2) {
+            return false;
+        }
+
+        const auto biasPort = addNode->getParentEdgeAt(0)->getParent() == childNode ? 1 : 0;
+        const auto biasNode = addNode->getParentEdgeAt(biasPort)->getParent();
+        return biasNode->getType() == Type::Input && biasNode->isConstant();
+    };
+#endif
+
     auto parent = graphNodes.begin();
     while (parent != graphNodes.end()) {
         auto parentNode = *parent;
@@ -1455,6 +1511,12 @@ void GraphOptimizer::FuseConvolutionAndSimpleOperation(Graph& graph) {
         const auto parentNodeType = parentNode->getType();
 
         auto childNode = parentNode->getChildEdgeAt(0)->getChild();
+#if defined(OPENVINO_ARCH_ARM) || defined(OPENVINO_ARCH_ARM64)
+        if (shouldKeepSplitBiasPattern(parentNode, childNode)) {
+            parent++;
+            continue;
+        }
+#endif
         if (!parentNode->canFuse(childNode)) {
             parent++;
             continue;

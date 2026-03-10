@@ -44,8 +44,29 @@ INSTANTIATE_TEST_SUITE_P(smoke_ConcatSDPTest,
         ::testing::Combine(::testing::Values(ElementType::f16),
                            ::testing::ValuesIn(inputShapes),
                            ::testing::Values(true, false),
+                           ::testing::Values(false),
                            ::testing::Values(true, false),
                            ::testing::Values(true, false)),
+        ConcatSDPTest::getTestCaseName);
+
+INSTANTIATE_TEST_SUITE_P(smoke_ConcatSDPTest_forceDotProduct,
+        ConcatSDPTest,
+        ::testing::Combine(::testing::Values(ElementType::f32),
+                           ::testing::Values(inputShapes[0]),
+                           ::testing::Values(false),
+                           ::testing::Values(false),
+                           ::testing::Values(false),
+                           ::testing::Values(false)),
+        ConcatSDPTest::getTestCaseName);
+
+INSTANTIATE_TEST_SUITE_P(smoke_ConcatSDPTest_forceKVF16,
+        ConcatSDPTest,
+        ::testing::Combine(::testing::Values(ElementType::f16),
+                           ::testing::Values(inputShapes[0]),
+                           ::testing::Values(false),
+                           ::testing::Values(true),
+                           ::testing::Values(false),
+                           ::testing::Values(false)),
         ConcatSDPTest::getTestCaseName);
 }  // namespace
 

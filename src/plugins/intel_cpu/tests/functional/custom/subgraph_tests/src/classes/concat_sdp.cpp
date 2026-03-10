@@ -31,7 +31,7 @@ namespace test {
  *                              Result
  */
 std::string ConcatSDPTest::getTestCaseName(const testing::TestParamInfo<ConcatSDPTestParams>& obj) {
-    const auto& [inType, inputShapes, forceKVU8, hasShapeOf, isDiffKVHeadSize] = obj.param;
+    const auto& [inType, inputShapes, forceKVU8, forceKVF16, hasShapeOf, isDiffKVHeadSize] = obj.param;
     std::ostringstream result;
     result << "IS=";
     for (const auto& shape : inputShapes) {
@@ -49,14 +49,16 @@ std::string ConcatSDPTest::getTestCaseName(const testing::TestParamInfo<ConcatSD
     }
     result << "Prc=" << inType << "_";
     result << "ForceKVU8=" << forceKVU8 << "_";
+    result << "ForceKVF16=" << forceKVF16 << "_";
     result << "HasShapeOf=" << hasShapeOf << "_";
     result << "IsDiffKVHeadSize=" << isDiffKVHeadSize;
     return result.str();
 }
 
 void ConcatSDPTest::SetUp() {
-    const auto& [inType, inputShapes, _m_forceKVU8, _m_hasShapeOf, _m_isDiffKVHeadSize] = this->GetParam();
+    const auto& [inType, inputShapes, _m_forceKVU8, _m_forceKVF16, _m_hasShapeOf, _m_isDiffKVHeadSize] = this->GetParam();
     m_forceKVU8 = _m_forceKVU8;
+    m_forceKVF16 = _m_forceKVF16;
     m_hasShapeOf = _m_hasShapeOf;
     m_isDiffKVHeadSize = _m_isDiffKVHeadSize;
     targetDevice = ov::test::utils::DEVICE_CPU;
@@ -68,7 +70,14 @@ void ConcatSDPTest::SetUp() {
 
     if (m_forceKVU8) {
         configuration["KV_CACHE_PRECISION"] = "u8";
+    } else if (m_forceKVF16) {
+        configuration["KV_CACHE_PRECISION"] = "f16";
     }
+#if defined(OPENVINO_ARCH_ARM64)
+    if (!m_forceKVU8 && !m_forceKVF16 && inType == ElementType::f32) {
+        configuration["KV_CACHE_PRECISION"] = "f32";
+    }
+#endif
     init_input_shapes(inputShapes);
     ov::ParameterVector inputParams;
     // q,k,v
@@ -223,7 +232,7 @@ std::vector<ov::Tensor> ConcatSDPTest::run_test(std::shared_ptr<ov::Model> model
 }
 TEST_P(ConcatSDPTest, CompareWithRefs) {
     SKIP_IF_CURRENT_TEST_IS_DISABLED();
-    const auto& [inType, inputShapes, forceKVU8, hasShapeOf, isDiffKVHeadSize] = this->GetParam();
+    const auto& [inType, inputShapes, forceKVU8, forceKVF16, hasShapeOf, isDiffKVHeadSize] = this->GetParam();
     auto actualOutputs = run_test(function);
     if (!hasShapeOf) {
         CheckNumberOfNodesWithType(compiledModel, "ScaledDotProductAttention", 1);

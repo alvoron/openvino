@@ -761,109 +761,221 @@ dot_product(TA* a, TB* b, size_t n, float* scale, float* zp, float* head_sum, [[
 
 #elif defined(OPENVINO_ARCH_ARM64)
 #    if defined(HAVE_SVE)
-    svbool_t pg = svptrue_b32();
-    svfloat32_t sum0 = svdup_n_f32(0.0f);
-    svfloat32_t sum1 = svdup_n_f32(0.0f);
-    svfloat32_t sum2 = svdup_n_f32(0.0f);
-    svfloat32_t sum3 = svdup_n_f32(0.0f);
-    auto vec_len = vec_len_f32_sve();
+    if constexpr (std::is_same_v<TA, ov::float16> && std::is_same_v<TB, ov::float16>) {
+        std::cout << "[DOT_PRODUCT] SVE fp16 branch" << std::endl;
+        auto _a = reinterpret_cast<const float16_t*>(a);
+        auto _b = reinterpret_cast<const float16_t*>(b);
+        svbool_t pg = svptrue_b16();
+        svfloat16_t sum0 = svdup_n_f16(0.0f);
+        svfloat16_t sum1 = svdup_n_f16(0.0f);
+        svfloat16_t sum2 = svdup_n_f16(0.0f);
+        svfloat16_t sum3 = svdup_n_f16(0.0f);
+        auto vec_len = vec_len_f16_sve();
 
-    auto _a = reinterpret_cast<float32_t*>(a);
-    auto _b = reinterpret_cast<float32_t*>(b);
+        for (; i + 4 * vec_len <= n; i += 4 * vec_len) {
+            svfloat16_t a0 = svld1_f16(pg, _a + i);
+            svfloat16_t a1 = svld1_f16(pg, _a + i + vec_len);
+            svfloat16_t a2 = svld1_f16(pg, _a + i + vec_len * 2);
+            svfloat16_t a3 = svld1_f16(pg, _a + i + vec_len * 3);
 
-    for (; i + 4 * vec_len <= n; i += 4 * vec_len) {
-        svfloat32_t a0 = svld1_f32(pg, _a + i);
-        svfloat32_t a1 = svld1_f32(pg, _a + i + vec_len);
-        svfloat32_t a2 = svld1_f32(pg, _a + i + vec_len * 2);
-        svfloat32_t a3 = svld1_f32(pg, _a + i + vec_len * 3);
+            svfloat16_t b0 = svld1_f16(pg, _b + i);
+            svfloat16_t b1 = svld1_f16(pg, _b + i + vec_len);
+            svfloat16_t b2 = svld1_f16(pg, _b + i + vec_len * 2);
+            svfloat16_t b3 = svld1_f16(pg, _b + i + vec_len * 3);
 
-        svfloat32_t b0 = svld1_f32(pg, _b + i);
-        svfloat32_t b1 = svld1_f32(pg, _b + i + vec_len);
-        svfloat32_t b2 = svld1_f32(pg, _b + i + vec_len * 2);
-        svfloat32_t b3 = svld1_f32(pg, _b + i + vec_len * 3);
+            sum0 = svmla_f16_z(pg, sum0, a0, b0);
+            sum1 = svmla_f16_z(pg, sum1, a1, b1);
+            sum2 = svmla_f16_z(pg, sum2, a2, b2);
+            sum3 = svmla_f16_z(pg, sum3, a3, b3);
+        }
+        if (i + 2 * vec_len <= n) {
+            svfloat16_t a0 = svld1_f16(pg, _a + i);
+            svfloat16_t a1 = svld1_f16(pg, _a + i + vec_len);
 
-        sum0 = svmla_f32_z(pg, sum0, a0, b0);
-        sum1 = svmla_f32_z(pg, sum1, a1, b1);
-        sum2 = svmla_f32_z(pg, sum2, a2, b2);
-        sum3 = svmla_f32_z(pg, sum3, a3, b3);
+            svfloat16_t b0 = svld1_f16(pg, _b + i);
+            svfloat16_t b1 = svld1_f16(pg, _b + i + vec_len);
+
+            sum0 = svmla_f16_z(pg, sum0, a0, b0);
+            sum1 = svmla_f16_z(pg, sum1, a1, b1);
+            i += 2 * vec_len;
+        }
+        if (i + vec_len <= n) {
+            svfloat16_t a0 = svld1_f16(pg, _a + i);
+            svfloat16_t b0 = svld1_f16(pg, _b + i);
+            sum0 = svmla_f16_z(pg, sum0, a0, b0);
+            i += vec_len;
+        }
+        if (i != n) {
+            svbool_t pg_rem = svwhilelt_b16(0, static_cast<int>(n - i));
+            svfloat16_t a0 = svld1_f16(pg_rem, _a + i);
+            svfloat16_t b0 = svld1_f16(pg_rem, _b + i);
+            sum0 = svmla_f16_m(pg_rem, sum0, a0, b0);
+            i = n;
+        }
+        float16_t sum_0 = svaddv_f16(pg, sum0);
+        float16_t sum_1 = svaddv_f16(pg, sum1);
+        float16_t sum_2 = svaddv_f16(pg, sum2);
+        float16_t sum_3 = svaddv_f16(pg, sum3);
+        sum = static_cast<float>(sum_0 + sum_1 + sum_2 + sum_3);
+    } else {
+        svbool_t pg = svptrue_b32();
+        svfloat32_t sum0 = svdup_n_f32(0.0f);
+        svfloat32_t sum1 = svdup_n_f32(0.0f);
+        svfloat32_t sum2 = svdup_n_f32(0.0f);
+        svfloat32_t sum3 = svdup_n_f32(0.0f);
+        auto vec_len = vec_len_f32_sve();
+
+        auto _a = reinterpret_cast<float32_t*>(a);
+        auto _b = reinterpret_cast<float32_t*>(b);
+
+        for (; i + 4 * vec_len <= n; i += 4 * vec_len) {
+            svfloat32_t a0 = svld1_f32(pg, _a + i);
+            svfloat32_t a1 = svld1_f32(pg, _a + i + vec_len);
+            svfloat32_t a2 = svld1_f32(pg, _a + i + vec_len * 2);
+            svfloat32_t a3 = svld1_f32(pg, _a + i + vec_len * 3);
+
+            svfloat32_t b0 = svld1_f32(pg, _b + i);
+            svfloat32_t b1 = svld1_f32(pg, _b + i + vec_len);
+            svfloat32_t b2 = svld1_f32(pg, _b + i + vec_len * 2);
+            svfloat32_t b3 = svld1_f32(pg, _b + i + vec_len * 3);
+
+            sum0 = svmla_f32_z(pg, sum0, a0, b0);
+            sum1 = svmla_f32_z(pg, sum1, a1, b1);
+            sum2 = svmla_f32_z(pg, sum2, a2, b2);
+            sum3 = svmla_f32_z(pg, sum3, a3, b3);
+        }
+        if (i + 2 * vec_len <= n) {
+            svfloat32_t a0 = svld1_f32(pg, _a + i);
+            svfloat32_t a1 = svld1_f32(pg, _a + i + vec_len);
+
+            svfloat32_t b0 = svld1_f32(pg, _b + i);
+            svfloat32_t b1 = svld1_f32(pg, _b + i + vec_len);
+
+            sum0 = svmla_f32_z(pg, sum0, a0, b0);
+            sum1 = svmla_f32_z(pg, sum1, a1, b1);
+            i += 2 * vec_len;
+        }
+        if (i + vec_len <= n) {
+            svfloat32_t a0 = svld1_f32(pg, _a + i);
+            svfloat32_t b0 = svld1_f32(pg, _b + i);
+            sum0 = svmla_f32_z(pg, sum0, a0, b0);
+            i += vec_len;
+        }
+        // Process the tail elements parallely as well (if any)
+        if (i != n) {
+            svbool_t pg_rem = svwhilelt_b32(0, static_cast<int>(n - i));
+            svfloat32_t a0 = svld1_f32(pg_rem, _a + i);
+            svfloat32_t b0 = svld1_f32(pg_rem, _b + i);
+            sum0 = svmla_f32_m(pg_rem, sum0, a0, b0);
+            i = n;
+        }
+        float32_t sum_0 = svaddv_f32(pg, sum0);
+        float32_t sum_1 = svaddv_f32(pg, sum1);
+        float32_t sum_2 = svaddv_f32(pg, sum2);
+        float32_t sum_3 = svaddv_f32(pg, sum3);
+        sum = static_cast<float>(sum_0 + sum_1 + sum_2 + sum_3);
     }
-    if (i + 2 * vec_len <= n) {
-        svfloat32_t a0 = svld1_f32(pg, _a + i);
-        svfloat32_t a1 = svld1_f32(pg, _a + i + vec_len);
-
-        svfloat32_t b0 = svld1_f32(pg, _b + i);
-        svfloat32_t b1 = svld1_f32(pg, _b + i + vec_len);
-
-        sum0 = svmla_f32_z(pg, sum0, a0, b0);
-        sum1 = svmla_f32_z(pg, sum1, a1, b1);
-        i += 2 * vec_len;
-    }
-    if (i + vec_len <= n) {
-        svfloat32_t a0 = svld1_f32(pg, _a + i);
-        svfloat32_t b0 = svld1_f32(pg, _b + i);
-        sum0 = svmla_f32_z(pg, sum0, a0, b0);
-        i += vec_len;
-    }
-    // Process the tail elements parallely as well (if any)
-    if (i != n) {
-        svbool_t pg_rem = svwhilelt_b32(0, static_cast<int>(n - i));
-        svfloat32_t a0 = svld1_f32(pg_rem, _a + i);
-        svfloat32_t b0 = svld1_f32(pg_rem, _b + i);
-        sum0 = svmla_f32_m(pg_rem, sum0, a0, b0);
-        i = n;
-    }
-    float32_t sum_0 = svaddv_f32(pg, sum0);
-    float32_t sum_1 = svaddv_f32(pg, sum1);
-    float32_t sum_2 = svaddv_f32(pg, sum2);
-    float32_t sum_3 = svaddv_f32(pg, sum3);
-    sum = static_cast<float>(sum_0 + sum_1 + sum_2 + sum_3);
 #    else
-    float32x4_t vsum0 = vdupq_n_f32(0.0f);
-    float32x4_t vsum1 = vdupq_n_f32(0.0f);
-    float32x4_t vsum2 = vdupq_n_f32(0.0f);
-    float32x4_t vsum3 = vdupq_n_f32(0.0f);
+#        if defined(HAVE_NEON_FP16)
+    if constexpr (std::is_same_v<TA, ov::float16> && std::is_same_v<TB, ov::float16>) {
+        std::cout << "[DOT_PRODUCT] NEON fp16 branch" << std::endl;
+        auto _a = reinterpret_cast<const float16_t*>(a);
+        auto _b = reinterpret_cast<const float16_t*>(b);
+        auto vsum0 = vdupq_n_f16(0.0f);
+        auto vsum1 = vdupq_n_f16(0.0f);
+        auto vsum2 = vdupq_n_f16(0.0f);
+        auto vsum3 = vdupq_n_f16(0.0f);
 
-    for (; i + 4 * vec_len_f32_neon <= n; i += vec_len_f32_neon * 4) {
-        float32x4_t va0 = __vld1q_f32(a + i);
-        float32x4_t va1 = __vld1q_f32(a + i + vec_len_f32_neon);
-        float32x4_t va2 = __vld1q_f32(a + i + vec_len_f32_neon * 2);
-        float32x4_t va3 = __vld1q_f32(a + i + vec_len_f32_neon * 3);
+        for (; i + 4 * vec_len_f16_neon <= n; i += vec_len_f16_neon * 4) {
+            auto va0 = vld1q_f16(_a + i);
+            auto va1 = vld1q_f16(_a + i + vec_len_f16_neon);
+            auto va2 = vld1q_f16(_a + i + vec_len_f16_neon * 2);
+            auto va3 = vld1q_f16(_a + i + vec_len_f16_neon * 3);
 
-        float32x4_t vb0 = __vld1q_f32(b + i);
-        float32x4_t vb1 = __vld1q_f32(b + i + vec_len_f32_neon);
-        float32x4_t vb2 = __vld1q_f32(b + i + vec_len_f32_neon * 2);
-        float32x4_t vb3 = __vld1q_f32(b + i + vec_len_f32_neon * 3);
+            auto vb0 = vld1q_f16(_b + i);
+            auto vb1 = vld1q_f16(_b + i + vec_len_f16_neon);
+            auto vb2 = vld1q_f16(_b + i + vec_len_f16_neon * 2);
+            auto vb3 = vld1q_f16(_b + i + vec_len_f16_neon * 3);
 
-        vsum0 = vmlaq_f32(vsum0, va0, vb0);
-        vsum1 = vmlaq_f32(vsum1, va1, vb1);
-        vsum2 = vmlaq_f32(vsum2, va2, vb2);
-        vsum3 = vmlaq_f32(vsum3, va3, vb3);
+            vsum0 = vfmaq_f16(vsum0, va0, vb0);
+            vsum1 = vfmaq_f16(vsum1, va1, vb1);
+            vsum2 = vfmaq_f16(vsum2, va2, vb2);
+            vsum3 = vfmaq_f16(vsum3, va3, vb3);
+        }
+        if (i + 2 * vec_len_f16_neon <= n) {
+            auto va0 = vld1q_f16(_a + i);
+            auto va1 = vld1q_f16(_a + i + vec_len_f16_neon);
+
+            auto vb0 = vld1q_f16(_b + i);
+            auto vb1 = vld1q_f16(_b + i + vec_len_f16_neon);
+
+            vsum0 = vfmaq_f16(vsum0, va0, vb0);
+            vsum1 = vfmaq_f16(vsum1, va1, vb1);
+            i += 2 * vec_len_f16_neon;
+        }
+        if (i + vec_len_f16_neon <= n) {
+            auto va0 = vld1q_f16(_a + i);
+            auto vb0 = vld1q_f16(_b + i);
+            vsum0 = vfmaq_f16(vsum0, va0, vb0);
+            i += vec_len_f16_neon;
+        }
+
+        vsum0 = vaddq_f16(vsum0, vsum1);
+        vsum2 = vaddq_f16(vsum2, vsum3);
+        vsum0 = vaddq_f16(vsum0, vsum2);
+
+        sum = static_cast<float>(hsum(vsum0));
+    } else
+#        endif
+    {
+        std::cout << "[DOT_PRODUCT] fp32 branch" << std::endl;
+        float32x4_t vsum0 = vdupq_n_f32(0.0f);
+        float32x4_t vsum1 = vdupq_n_f32(0.0f);
+        float32x4_t vsum2 = vdupq_n_f32(0.0f);
+        float32x4_t vsum3 = vdupq_n_f32(0.0f);
+
+        for (; i + 4 * vec_len_f32_neon <= n; i += vec_len_f32_neon * 4) {
+            float32x4_t va0 = __vld1q_f32(a + i);
+            float32x4_t va1 = __vld1q_f32(a + i + vec_len_f32_neon);
+            float32x4_t va2 = __vld1q_f32(a + i + vec_len_f32_neon * 2);
+            float32x4_t va3 = __vld1q_f32(a + i + vec_len_f32_neon * 3);
+
+            float32x4_t vb0 = __vld1q_f32(b + i);
+            float32x4_t vb1 = __vld1q_f32(b + i + vec_len_f32_neon);
+            float32x4_t vb2 = __vld1q_f32(b + i + vec_len_f32_neon * 2);
+            float32x4_t vb3 = __vld1q_f32(b + i + vec_len_f32_neon * 3);
+
+            vsum0 = vmlaq_f32(vsum0, va0, vb0);
+            vsum1 = vmlaq_f32(vsum1, va1, vb1);
+            vsum2 = vmlaq_f32(vsum2, va2, vb2);
+            vsum3 = vmlaq_f32(vsum3, va3, vb3);
+        }
+        if (i + 2 * vec_len_f32_neon <= n) {
+            float32x4_t va0 = __vld1q_f32(a + i);
+            float32x4_t va1 = __vld1q_f32(a + i + vec_len_f32_neon);
+
+            float32x4_t vb0 = __vld1q_f32(b + i);
+            float32x4_t vb1 = __vld1q_f32(b + i + vec_len_f32_neon);
+
+            vsum0 = vmlaq_f32(vsum0, va0, vb0);
+            vsum1 = vmlaq_f32(vsum1, va1, vb1);
+            i += 2 * vec_len_f32_neon;
+        }
+        if (i + vec_len_f32_neon <= n) {
+            float32x4_t va0 = __vld1q_f32(a + i);
+            float32x4_t vb0 = __vld1q_f32(b + i);
+            vsum0 = vmlaq_f32(vsum0, va0, vb0);
+            i += vec_len_f32_neon;
+        }
+
+        vsum0 = vaddq_f32(vsum0, vsum1);
+        vsum2 = vaddq_f32(vsum2, vsum3);
+        vsum0 = vaddq_f32(vsum0, vsum2);
+
+        float32x2_t temp_sum = vadd_f32(vget_low_f32(vsum0), vget_high_f32(vsum0));
+        temp_sum = vpadd_f32(temp_sum, temp_sum);
+        sum = vget_lane_f32(temp_sum, 0);
     }
-    if (i + 2 * vec_len_f32_neon <= n) {
-        float32x4_t va0 = __vld1q_f32(a + i);
-        float32x4_t va1 = __vld1q_f32(a + i + vec_len_f32_neon);
-
-        float32x4_t vb0 = __vld1q_f32(b + i);
-        float32x4_t vb1 = __vld1q_f32(b + i + vec_len_f32_neon);
-
-        vsum0 = vmlaq_f32(vsum0, va0, vb0);
-        vsum1 = vmlaq_f32(vsum1, va1, vb1);
-        i += 2 * vec_len_f32_neon;
-    }
-    if (i + vec_len_f32_neon <= n) {
-        float32x4_t va0 = __vld1q_f32(a + i);
-        float32x4_t vb0 = __vld1q_f32(b + i);
-        vsum0 = vmlaq_f32(vsum0, va0, vb0);
-        i += vec_len_f32_neon;
-    }
-
-    vsum0 = vaddq_f32(vsum0, vsum1);
-    vsum2 = vaddq_f32(vsum2, vsum3);
-    vsum0 = vaddq_f32(vsum0, vsum2);
-
-    float32x2_t temp_sum = vadd_f32(vget_low_f32(vsum0), vget_high_f32(vsum0));
-    temp_sum = vpadd_f32(temp_sum, temp_sum);
-    sum = vget_lane_f32(temp_sum, 0);
 #    endif
 #endif
     for (; i < n; i++) {
@@ -1756,7 +1868,7 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
                     // the memory will be continuous when b==1
                     for (size_t iwork = start; iwork < end; ++iwork) {
                         auto* p = past_k_scale_zp.ptr<float>(pk, 0, h_group);
-#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
+/*#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
                         if (std::is_same_v<T3, ov::float16> && std::is_same_v<T, ov::float16>) {
                             if constexpr (std::is_same_v<T2, uint8_t>) {
                                 auto p_k = present_key.ptr<T2>(0, h_group, pk);
@@ -1786,7 +1898,7 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
                                 continue;
                             }
                         }
-#endif
+#endif*/
                         if (quant_key_by_channel && pastkv_is_int8) {
                             auto* p_scale = past_k_scale_zp.ptr<float>(pk / key_group_size * 2, 0, h_group);
                             auto* p_zp = past_k_scale_zp.ptr<float>(pk / key_group_size * 2 + 1, 0, h_group);
@@ -1811,7 +1923,7 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
                     for (size_t iwork = start; iwork < end; ++iwork) {
                         auto b_kv = beams ? beams.ptr<int32_t>(b)[pk] : b;
                         auto* p = past_k_scale_zp.ptr<float>(pk, b_kv, h_group);
-#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
+/*#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
                         if (std::is_same_v<T3, ov::float16> && std::is_same_v<T, ov::float16>) {
                             if constexpr (std::is_same_v<T2, uint8_t>) {
                                 auto _qk = dot_product_fp16<ov::element::u8>(query.ptr<ov::float16>(b, h_group),
@@ -1837,7 +1949,7 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
                                 continue;
                             }
                         }
-#endif
+#endif*/
                         if (quant_key_by_channel && pastkv_is_int8) {
                             auto* p_scale = past_k_scale_zp.ptr<float>(pk / key_group_size * 2, b_kv, h_group);
                             auto* p_zp = past_k_scale_zp.ptr<float>(pk / key_group_size * 2 + 1, b_kv, h_group);
@@ -1863,7 +1975,7 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
                     for (size_t pq = 0; pq < q_len; pq++) {
                         auto* p = past_k_scale_zp.ptr<float>(pk, b_kv, h_group);
                         for (size_t h = h_group * h_each_group_len; h < (h_group + 1) * h_each_group_len; h++) {
-#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
+/*#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
                             if (std::is_same_v<T3, ov::float16> && std::is_same_v<T, ov::float16>) {
                                 if constexpr (std::is_same_v<T2, uint8_t>) {
                                     auto _qk = dot_product_fp16<ov::element::u8>(query.ptr<ov::float16>(b, h, pq),
@@ -1888,7 +2000,7 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
                                     continue;
                                 }
                             }
-#endif
+#endif*/
                             if (quant_key_by_channel && pastkv_is_int8) {
                                 auto* p_scale = past_k_scale_zp.ptr<float>(pk / key_group_size * 2, b_kv, h_group);
                                 auto* p_zp = past_k_scale_zp.ptr<float>(pk / key_group_size * 2 + 1, b_kv, h_group);

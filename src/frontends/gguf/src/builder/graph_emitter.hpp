@@ -22,10 +22,6 @@
 
 namespace ov::frontend::gguf {
 
-// Split "<something>.weight" into "<something>"; return the name unchanged when it does not end
-// in ".weight" (biases and other plain tensors keep their full name as the base).
-std::string strip_weight_suffix(const std::string& name);
-
 // Builds OpenVINO values through the shared GGML converters.
 class GraphEmitter {
 public:
@@ -55,11 +51,6 @@ public:
     // First extent of a weight's OV shape (its row count), 1 when the weight is absent/scalar.
     int64_t weight_rows(const std::string& name) const;
 
-    // The "<base>.weight" / ".scales" / ".zp" tensors present for a weight, and its quant type
-    // ("<base>.qtype", F16 when absent).
-    WeightTensors weight_parts(const std::string& base) const;
-    GgufTensorType weight_qtype(const std::string& base) const;
-
     std::unordered_map<std::string, ov::Tensor>& weights() {
         return m_weights;
     }
@@ -81,8 +72,7 @@ public:
                        const std::string& name,
                        const std::vector<std::string>& inputs,
                        int op_case = 0,
-                       std::map<std::string, ov::Any> attrs = {},
-                       std::vector<std::string> extra_outputs = {});
+                       std::map<std::string, ov::Any> attrs = {});
 
     std::shared_ptr<ov::op::v0::Parameter> add_input(const std::string& name,
                                                      ov::element::Type type,

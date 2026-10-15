@@ -4,11 +4,9 @@
 
 #include "utils.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <memory>
-#include <numeric>
 #include <string>
 
 #include "openvino/core/model.hpp"
@@ -22,16 +20,13 @@
 #include "openvino/op/maximum.hpp"
 #include "openvino/op/multiply.hpp"
 #include "openvino/op/parameter.hpp"
-#include "openvino/op/reduce_sum.hpp"
 #include "openvino/op/reshape.hpp"
 #include "openvino/op/shape_of.hpp"
 #include "openvino/op/sin.hpp"
 #include "openvino/op/slice.hpp"
-#include "openvino/op/sqrt.hpp"
 #include "openvino/op/squeeze.hpp"
 #include "openvino/op/subtract.hpp"
 #include "openvino/op/transpose.hpp"
-#include "openvino/op/variadic_split.hpp"
 
 namespace ov::frontend::gguf {
 
@@ -58,22 +53,14 @@ std::pair<ov::Output<ov::Node>, ov::Output<ov::Node>> get_glu_inputs(const NodeC
         const auto half_dim = last_dim / 2;
 
         auto axis = ov::op::v0::Constant::create(ov::element::i64, {1}, {-1});
-        if (last_dim % 2 == 0) {
-            // VariadicSplit is the form GLUFusion matches.
-            auto lengths = ov::op::v0::Constant::create(ov::element::i64, {2}, {half_dim, half_dim});
-            auto split = std::make_shared<ov::op::v1::VariadicSplit>(combined, axis, lengths);
-            src0 = split->output(0);
-            src1 = split->output(1);
-        } else {
-            auto step = ov::op::v0::Constant::create(ov::element::i64, {1}, {1});
-            auto start0 = ov::op::v0::Constant::create(ov::element::i64, {1}, {0});
-            auto stop0 = ov::op::v0::Constant::create(ov::element::i64, {1}, {half_dim});
-            auto start1 = ov::op::v0::Constant::create(ov::element::i64, {1}, {half_dim});
-            auto stop1 = ov::op::v0::Constant::create(ov::element::i64, {1}, {2 * half_dim});
+        auto step = ov::op::v0::Constant::create(ov::element::i64, {1}, {1});
+        auto start0 = ov::op::v0::Constant::create(ov::element::i64, {1}, {0});
+        auto stop0 = ov::op::v0::Constant::create(ov::element::i64, {1}, {half_dim});
+        auto start1 = ov::op::v0::Constant::create(ov::element::i64, {1}, {half_dim});
+        auto stop1 = ov::op::v0::Constant::create(ov::element::i64, {1}, {2 * half_dim});
 
-            src0 = std::make_shared<ov::op::v8::Slice>(combined, start0, stop0, step, axis);
-            src1 = std::make_shared<ov::op::v8::Slice>(combined, start1, stop1, step, axis);
-        }
+        src0 = std::make_shared<ov::op::v8::Slice>(combined, start0, stop0, step, axis);
+        src1 = std::make_shared<ov::op::v8::Slice>(combined, start1, stop1, step, axis);
     }
 
     if (context.get_attribute<bool>("swapped")) {
@@ -104,21 +91,8 @@ int non_cont_dim(std::vector<size_t> ne, std::vector<size_t> nb) {
     return 0;
 }
 
-ov::Output<ov::Node> make_l2_norm(const ov::Output<ov::Node>& x, float eps) {
-    auto sum = std::make_shared<ov::op::v1::ReduceSum>(std::make_shared<ov::op::v1::Multiply>(x, x),
-                                                       ov::op::v0::Constant::create(ov::element::i64, {1}, {-1}),
-                                                       true);
-    auto norm = std::make_shared<ov::op::v1::Maximum>(std::make_shared<ov::op::v0::Sqrt>(sum),
-                                                      ov::op::v0::Constant::create(ov::element::f32, {1}, {eps}));
-    return std::make_shared<ov::op::v1::Divide>(x, norm);
-}
-
-void name_output(const ov::Output<ov::Node>& out, const std::string& name) {
-    out.get_node_shared_ptr()->set_friendly_name(name);
-    out.get_node_shared_ptr()->output(0).set_names({name});
-}
-
-std::shared_ptr<ov::Node> gather_dims(const ov::Output<ov::Node>& shape, const std::vector<int>& dims) {
+std::shared_ptr<ov::Node> get_dimensions(const std::shared_ptr<ov::op::v3::ShapeOf>& shape,
+                                         const std::vector<int>& dims) {
     using namespace ov::op;
     const auto zero = v0::Constant::create(ov::element::i32, ov::Shape{}, {0});
     const auto dims_const = v0::Constant::create(ov::element::i32, ov::Shape{dims.size()}, dims);
@@ -126,7 +100,7 @@ std::shared_ptr<ov::Node> gather_dims(const ov::Output<ov::Node>& shape, const s
 }
 
 std::shared_ptr<ov::Node> get_dimensions(const ov::Output<ov::Node>& output, const std::vector<int>& dims) {
-    return gather_dims(std::make_shared<ov::op::v3::ShapeOf>(output), dims);
+    return get_dimensions(std::make_shared<ov::op::v3::ShapeOf>(output), dims);
 }
 
 OutputVector rename_outputs_with_suffix(OutputVector outputs, const std::string& suffix) {
@@ -247,22 +221,8 @@ std::pair<ov::Output<Node>, ov::Output<Node>> make_sin_cos(const RopeConfig& rop
     float mscale = attn_factor;
     if (imrope) {
         std::vector<int64_t> gather_indices(n_dims_half);
-        const auto& sections = rope_config.sections;
-        FRONT_END_GENERAL_CHECK(std::all_of(sections.begin(),
-                                            sections.end(),
-                                            [](int32_t s) {
-                                                return s >= 0;
-                                            }),
-                                "M-RoPE sections must be nonnegative");
-        // Four int32 counts always fit in 64 bits.
-        const int64_t total = std::accumulate(sections.begin(), sections.end(), int64_t{0});
         for (size_t j = 0; j < n_dims_half; j++) {
-            const size_t sector = total ? j % static_cast<size_t>(total) : j;
-            gather_indices[j] = !total                                                             ? j % 3
-                                : sector % 3 == 1 && sector < 3 * static_cast<size_t>(sections[1]) ? 1
-                                : sector % 3 == 2 && sector < 3 * static_cast<size_t>(sections[2]) ? 2
-                                : sector % 3 == 0 && sector < 3 * static_cast<size_t>(sections[0]) ? 0
-                                                                                                   : 3;
+            gather_indices[j] = j % 3;
             factor[j] = static_cast<float>(std::pow(theta_scale, j));
         }
         auto gather_indices_const =
